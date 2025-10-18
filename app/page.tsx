@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function StartPage() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen bg-white">
@@ -9,14 +11,16 @@ export default function StartPage() {
         </h1>
 
         {/* 新規ボタン */}
-        <button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-full shadow-sm transition">
+        <Link
+          href="/user"
+          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-full shadow-sm transition"
+        >
           新規
-        </button>
+        </Link>
 
-        {/* パスワード欄（まだ仮） */}
+        {/* パスワード欄（今は仮） */}
         <p className="text-gray-400 text-sm">ここにパスワード入力欄を置く</p>
       </div>
     </main>
   );
 }
-
