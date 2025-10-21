@@ -68,7 +68,7 @@ export default function TimezoneSelectorModal({
         setSelectedTimezone(countryTimezones[0].value);
       }
     }
-  }, [isOpen, timezonesByCountry]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
