@@ -1,21 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import moment from 'moment-timezone';
 
-// 🌍 タイムゾーンリスト
-const allTimezones =
-  typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
-    ? Intl.supportedValuesOf('timeZone')
-    : [
-        'Asia/Tokyo',
-        'America/New_York',
-        'Europe/London',
-        'Asia/Shanghai',
-        'Asia/Seoul',
-        'America/Los_Angeles',
-      ];
+// ✅ moment-timezoneで全タイムゾーン取得
+const allTimezones = moment.tz.names();
 
-// 🎨 カラーパレット
+// ✅ 色覚多様性に配慮したカラー
 const colorPalette = [
   '#E60012', '#F39800', '#FFF100', '#8FC31F', '#009944',
   '#009E96', '#00A0E9', '#0068B7', '#1D2088', '#920783',
@@ -38,7 +29,7 @@ export default function UserRegisterForm({
     setColor(random);
   }, []);
 
-  // ✅ 入力中でも「完了」押せるように
+  // ✅ 完了押下（どこもクリックしなくても即OK）
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -48,7 +39,7 @@ export default function UserRegisterForm({
     onComplete({ name, country, color });
   };
 
-  // 🔍 国検索
+  // 🔍 検索フィルター
   const filteredTimezones = allTimezones.filter((tz) =>
     tz.toLowerCase().includes(search.toLowerCase())
   );
@@ -56,10 +47,10 @@ export default function UserRegisterForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col items-center space-y-6 w-80 p-6 bg-white rounded-xl shadow-lg"
+      className="flex flex-col items-center space-y-6 w-80 p-6 bg-white rounded-xl shadow-lg transition"
     >
       {/* タイトル */}
-      <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+      <h1 className="text-3xl font-extrabold text-gray-900 tracking-wide mb-2">
         ユーザー登録
       </h1>
 
@@ -75,15 +66,15 @@ export default function UserRegisterForm({
         />
       </div>
 
-      {/* 国選択 + 検索 */}
+      {/* 国選択 */}
       <div className="w-full">
-        <label className="text-sm text-gray-400 mb-1 block">国を選択</label>
+        <label className="text-sm text-gray-400 mb-1 block">国・地域を選択</label>
         <input
           type="text"
-          placeholder="検索（Tokyo, New Yorkなど）"
+          placeholder="検索（Tokyo, New York など）"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-2 text-gray-700 placeholder-gray-400 mb-2"
+          className="w-full border border-gray-300 rounded px-3 py-2 text-gray-700 placeholder-gray-400 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
         />
         <select
           value={country}
@@ -93,7 +84,7 @@ export default function UserRegisterForm({
         >
           {filteredTimezones.map((tz) => (
             <option key={tz} value={tz}>
-              {tz.replace('_', ' ')}
+              {tz}
             </option>
           ))}
         </select>
@@ -108,10 +99,10 @@ export default function UserRegisterForm({
         ></div>
       </div>
 
-      {/* 完了ボタン */}
+      {/* 完了 */}
       <button
         type="submit"
-        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-10 rounded-full shadow-md transition"
+        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-8 rounded-full shadow-md transition active:scale-95"
       >
         完了
       </button>
