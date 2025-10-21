@@ -1,62 +1,54 @@
 'use client';
 
-import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import dayjs from '@/utils/time';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { getSharedCalendars, getShareSession } from '@/utils/share';
 import { getUserSession } from '@/utils/session';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
-import TimezoneSelectorModal from './TimezoneSelectorModal';
+import dayjs from '@/utils/time';
+import { Plus, ArrowLeft, Users } from 'lucide-react';
+import TimezoneSelectorModal from '@/components/TimezoneSelectorModal';
 
-type Props = {
-  dateISO: string;
-  baselineTz?: string;
-};
-
-export default function MultiZoneDayView({
-  dateISO,
-  baselineTz = 'Asia/Tokyo',
-}: Props) {
+export default function SharedDayView() {
   const router = useRouter();
+  const params = useParams();
+  const calendarId = params.calendarId as string;
+  const dateISO = params.date as string;
+  
+  const [calendar, setCalendar] = useState<any>(null);
+  const [shareSession, setShareSession] = useState<any>(null);
   const [zones, setZones] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const globalHeaderRef = useRef<HTMLDivElement>(null);
-  const zoneHeaderRowRef = useRef<HTMLDivElement>(null);
 
-  // ユーザーセッションからタイムゾーンを取得して初期化
   useEffect(() => {
+    const calendars = getSharedCalendars();
+    const foundCalendar = calendars.find(c => c.id === calendarId);
+    
+    if (!foundCalendar) {
+      router.push('/share');
+      return;
+    }
+    
+    setCalendar(foundCalendar);
+    
+    const session = getShareSession();
+    if (!session || session.calendarId !== calendarId) {
+      router.push(`/share/${calendarId}/users`);
+      return;
+    }
+    
+    setShareSession(session);
+
+    // ユーザーセッションからタイムゾーンを取得して初期化
     const userSession = getUserSession();
     if (userSession && userSession.timezone) {
       setZones([userSession.timezone]);
-      setIsInitialized(true);
     } else {
-      // フォールバック: デフォルトのタイムゾーン
-      setZones([baselineTz]);
-      setIsInitialized(true);
+      setZones(['Asia/Tokyo']);
     }
-  }, [baselineTz]);
-
-  // ✅ 各ヘッダーの高さを取得し、Sticky位置を動的に調整
-  useLayoutEffect(() => {
-    const updateHeights = () => {
-      const gh = globalHeaderRef.current?.offsetHeight ?? 0;
-      const zh = zoneHeaderRowRef.current?.offsetHeight ?? 0;
-      document.documentElement.style.setProperty('--globalH', `${gh}px`);
-      document.documentElement.style.setProperty('--zoneH', `${zh}px`);
-      document.documentElement.style.setProperty('--zonesTop', `${gh}px`);
-    };
-    updateHeights();
-    window.addEventListener('resize', updateHeights);
-    const obs = new ResizeObserver(updateHeights);
-    if (zoneHeaderRowRef.current) obs.observe(zoneHeaderRowRef.current);
-    return () => {
-      window.removeEventListener('resize', updateHeights);
-      obs.disconnect();
-    };
-  }, []);
-
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+    setIsInitialized(true);
+  }, [calendarId, router]);
 
   const handleAddZone = () => {
     setIsModalOpen(true);
@@ -70,22 +62,18 @@ export default function MultiZoneDayView({
   const getCityName = (timezone: string): string => {
     const timezoneOption = TIMEZONE_OPTIONS.find(option => option.value === timezone);
     if (timezoneOption) {
-      // ラベルから都市名と国名を抽出（例：「東京 (日本)」→「東京（日本）」）
       const match = timezoneOption.label.match(/^([^(]+)\s*\(([^)]+)\)/);
       if (match) {
         const cityName = match[1].trim();
         const countryName = match[2].trim();
         return `${cityName}（${countryName}）`;
       }
-      // 括弧がない場合はそのまま返す
       return timezoneOption.label;
     }
-    // フォールバック：タイムゾーン文字列から最後の部分を取得
     return timezone.split('/').pop() || timezone;
   };
 
-  // 初期化が完了するまでローディング表示
-  if (!isInitialized) {
+  if (!calendar || !shareSession || !isInitialized) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-gray-600">読み込み中...</div>
@@ -93,21 +81,20 @@ export default function MultiZoneDayView({
     );
   }
 
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+
   return (
     <main className="min-h-screen bg-white">
       {/* ===== 日付ヘッダー ===== */}
-      <div
-        ref={globalHeaderRef}
-        className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex justify-between items-center"
-      >
+      <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/calendar')}
+            onClick={() => router.push(`/shared/${calendarId}`)}
             className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600 transition"
-            title="月カレンダーに戻る"
+            title="共有カレンダーに戻る"
           >
             <ArrowLeft size={16} />
-            月カレンダー
+            カレンダー
           </button>
           <h2 className="text-2xl font-bold text-gray-800">
             {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
@@ -122,14 +109,34 @@ export default function MultiZoneDayView({
         </button>
       </div>
 
+      {/* ===== 参加者一覧 === */}
+      <div className="px-4 py-2 bg-gray-50 border-b">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">
+            {calendar.name} - 参加者 ({calendar.participants.length}人)
+          </span>
+          <div className="flex gap-2">
+            {calendar.participants.map((participant: any) => (
+              <div
+                key={participant.id}
+                className="flex items-center gap-1 px-2 py-1 bg-white rounded-md border"
+              >
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: participant.color }}
+                />
+                <span className="text-xs text-gray-700">
+                  {participant.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* ===== タイムゾーンヘッダー ===== */}
-      <div
-        ref={zoneHeaderRowRef}
-        className="sticky z-20 bg-white border-b"
-        style={{
-          top: 'var(--zonesTop)',
-        }}
-      >
+      <div className="sticky z-20 bg-white border-b">
         <div
           className="grid"
           style={{
@@ -137,7 +144,7 @@ export default function MultiZoneDayView({
           }}
         >
           {zones.map((tz) => (
-            <React.Fragment key={tz}>
+            <div key={tz} className="contents">
               {/* ← 時間列ヘッダー（空） */}
               <div className="h-[64px] border-r bg-white" />
 
@@ -145,31 +152,31 @@ export default function MultiZoneDayView({
               <div className="h-[64px] border-r bg-white flex items-center justify-center font-bold text-gray-800">
                 {getCityName(tz)}
               </div>
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </div>
 
       {/* ===== タイムライン本体 ===== */}
       <div
-        className="grid border-t border-gray-200 pt-[20px]" // ← 上の隙間を確保して見切れ防止
+        className="grid border-t border-gray-200 pt-[20px]"
         style={{
           gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
         }}
       >
         {hours.map((h) => (
-          <React.Fragment key={h}>
+          <div key={h} className="contents">
             {zones.map((tz) => {
               const base = dayjs(dateISO)
-                .tz(baselineTz)
+                .tz('Asia/Tokyo')
                 .hour(h)
                 .minute(0)
                 .second(0);
               const local = base.tz(tz);
 
               return (
-                <React.Fragment key={`${tz}-${h}`}>
-                  {/* 時間セル（線の高さに合わせる） */}
+                <div key={`${tz}-${h}`} className="contents">
+                  {/* 時間セル */}
                   <div className="h-16 border-b border-gray-200 flex items-start justify-end pr-2 text-gray-700 text-sm font-medium relative">
                     <span className="absolute top-0 -translate-y-1/2">
                       {local.format('HH:mm')}
@@ -178,10 +185,10 @@ export default function MultiZoneDayView({
 
                   {/* 予定欄セル */}
                   <div className="h-16 border-b border-r border-gray-200 bg-white" />
-                </React.Fragment>
+                </div>
               );
             })}
-          </React.Fragment>
+          </div>
         ))}
       </div>
 

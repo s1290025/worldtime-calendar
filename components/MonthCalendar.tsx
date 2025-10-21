@@ -3,15 +3,33 @@
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useState, useMemo, useEffect, useState as useReactState } from 'react';
+import { getEventsForDate } from '@/utils/events';
+import EventForm from './EventForm';
 
 dayjs.locale('ja');
+
+// 背景色に応じて適切な文字色を決定する関数
+function getContrastColor(backgroundColor: string): string {
+  // 16進数カラーコードをRGBに変換
+  const hex = backgroundColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // 相対輝度を計算
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // 輝度が0.5より高い場合は黒、低い場合は白を返す
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
 
 export default function MonthCalendar() {
   const router = useRouter();
   const [currentMonth, setCurrentMonth] = useReactState(dayjs());
   const [windowHeight, setWindowHeight] = useReactState(0);
+  const [isEventFormOpen, setIsEventFormOpen] = useState(false);
 
   // 画面高さを監視してレスポンシブ対応
   useEffect(() => {
@@ -41,6 +59,14 @@ export default function MonthCalendar() {
   const goPrev = () => setCurrentMonth((prev) => prev.subtract(1, 'month'));
   const goNext = () => setCurrentMonth((prev) => prev.add(1, 'month'));
 
+  const handleEventFormClose = () => {
+    setIsEventFormOpen(false);
+  };
+
+  const handleEventSave = () => {
+    // 予定が保存された時の処理（必要に応じて状態を更新）
+  };
+
   // ヘッダー＋曜日部分を引いた残りを週ごとに均等配分
   const headerHeight = 120; // px（タイトル＋曜日）
   const availableHeight = Math.max(windowHeight - headerHeight - 40, 300); // 最低300px確保
@@ -59,11 +85,24 @@ export default function MonthCalendar() {
             <ChevronLeft className="w-6 h-6 text-gray-700" />
           </button>
 
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 
+            className="text-xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+            onClick={() => router.push(`/day/${currentMonth.format('YYYY-MM-DD')}`)}
+            title="日タイムラインを表示"
+          >
             {currentMonth.format('YYYY年 M月')}
           </h2>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEventFormOpen(true)}
+              className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+              title="予定を追加"
+            >
+              <Plus className="w-4 h-4" />
+              予定追加
+            </button>
+            
             <button
               onClick={goNext}
               className="p-2 rounded-full hover:bg-gray-100 transition"
@@ -104,13 +143,14 @@ export default function MonthCalendar() {
           {days.map((d) => {
             const isCurrentMonth = d.isSame(currentMonth, 'month');
             const isToday = d.isSame(dayjs(), 'day');
+            const dateStr = d.format('YYYY-MM-DD');
+            const events = getEventsForDate(dateStr, 'Asia/Tokyo');
 
             return (
               <div
-                key={d.format('YYYY-MM-DD')}
-                onClick={() => router.push(`/day/${d.format('YYYY-MM-DD')}`)}
+                key={dateStr}
                 className={`
-                  border-r border-b p-2 cursor-pointer transition-all
+                  border-r border-b p-2 cursor-pointer transition-all relative
                   hover:bg-blue-50
                   ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'text-gray-900'}
                   ${isToday ? 'bg-blue-100 text-blue-700 font-bold' : ''}
@@ -119,12 +159,50 @@ export default function MonthCalendar() {
                   height: `${cellHeight}px`,
                 }}
               >
-                <div className="text-right text-sm">{d.date()}</div>
+                <div className="text-right text-sm mb-1">{d.date()}</div>
+                
+                {/* 予定表示 */}
+                <div className="space-y-1">
+                  {events.slice(0, 3).map((event) => (
+                    <div
+                      key={event.id}
+                      className="text-xs p-1 rounded truncate font-semibold shadow-sm"
+                      style={{ 
+                        backgroundColor: event.color,
+                        color: getContrastColor(event.color)
+                      }}
+                      title={event.title}
+                    >
+                      {event.title}
+                    </div>
+                  ))}
+                  {events.length > 3 && (
+                    <div className="text-xs text-gray-600 font-medium">
+                      +{events.length - 3} 件
+                    </div>
+                  )}
+                </div>
+
+                {/* クリックイベント - 日タイムライン表示 */}
+                <div
+                  className="absolute inset-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/day/${dateStr}`);
+                  }}
+                />
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* 予定入力フォーム */}
+      <EventForm
+        isOpen={isEventFormOpen}
+        onClose={handleEventFormClose}
+        onSave={handleEventSave}
+      />
     </div>
   );
 }
