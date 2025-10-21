@@ -4,6 +4,7 @@ import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import dayjs from '@/utils/time';
 import { Plus } from 'lucide-react';
 import { getUserSession } from '@/utils/session';
+import { TIMEZONE_OPTIONS } from '@/utils/timezones';
 import TimezoneSelectorModal from './TimezoneSelectorModal';
 
 type Props = {
@@ -63,6 +64,24 @@ export default function MultiZoneDayView({
     setZones((prev) => [...prev, timezone]);
   };
 
+  // タイムゾーンから都市名と国名を取得
+  const getCityName = (timezone: string): string => {
+    const timezoneOption = TIMEZONE_OPTIONS.find(option => option.value === timezone);
+    if (timezoneOption) {
+      // ラベルから都市名と国名を抽出（例：「東京 (日本)」→「東京（日本）」）
+      const match = timezoneOption.label.match(/^([^(]+)\s*\(([^)]+)\)/);
+      if (match) {
+        const cityName = match[1].trim();
+        const countryName = match[2].trim();
+        return `${cityName}（${countryName}）`;
+      }
+      // 括弧がない場合はそのまま返す
+      return timezoneOption.label;
+    }
+    // フォールバック：タイムゾーン文字列から最後の部分を取得
+    return timezone.split('/').pop() || timezone;
+  };
+
   // 初期化が完了するまでローディング表示
   if (!isInitialized) {
     return (
@@ -110,9 +129,9 @@ export default function MultiZoneDayView({
               {/* ← 時間列ヘッダー（空） */}
               <div className="h-[64px] border-r bg-white" />
 
-              {/* ← 国名ヘッダー */}
+              {/* ← 都市名（国名）ヘッダー */}
               <div className="h-[64px] border-r bg-white flex items-center justify-center font-bold text-gray-800">
-                {tz}
+                {getCityName(tz)}
               </div>
             </React.Fragment>
           ))}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveUserSession, UserData } from '@/utils/session';
 import { TIMEZONE_OPTIONS, getTimezonesByCountry, getCountries } from '@/utils/timezones';
+import { UNIVERSAL_COLORS, getRandomColor } from '@/utils/colors';
 import SearchableSelect from './SearchableSelect';
 
 interface UserRegisterFormProps {
@@ -15,7 +16,8 @@ export default function UserRegisterForm({ onComplete }: UserRegisterFormProps) 
   const [name, setName] = useState('');
   const [country, setCountry] = useState('Japan');
   const [timezone, setTimezone] = useState('Asia/Tokyo');
-  const [color, setColor] = useState('#3B82F6');
+  const [color, setColor] = useState(getRandomColor());
+  const [isInitialColor, setIsInitialColor] = useState(true);
   
   const countries = getCountries();
   const timezonesByCountry = getTimezonesByCountry();
@@ -109,15 +111,46 @@ export default function UserRegisterForm({ onComplete }: UserRegisterFormProps) 
 
           <div>
             <label htmlFor="color" className="block text-sm font-medium text-gray-700">
-              お気に入りの色
+              ユーザーカラー
             </label>
-            <input
-              id="color"
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="mt-1 block w-full h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+            
+             {/* ユニバーサルカラー選択 */}
+             <div className="mt-2">
+               <div className="grid grid-cols-5 gap-2 mb-3">
+                 {UNIVERSAL_COLORS.map((colorOption) => (
+                   <button
+                     key={colorOption.value}
+                     type="button"
+                     onClick={() => {
+                       setColor(colorOption.value);
+                       setIsInitialColor(false);
+                     }}
+                     className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                       color === colorOption.value 
+                         ? 'border-gray-800 ring-2 ring-gray-300' 
+                         : 'border-gray-300 hover:border-gray-400'
+                     }`}
+                     style={{ backgroundColor: colorOption.value }}
+                     title={`${colorOption.name} - ${colorOption.description}`}
+                   />
+                 ))}
+              </div>
+            </div>
+
+             {/* カスタムカラー選択 */}
+             <div className="mt-3">
+               <p className="text-sm text-gray-600 mb-2">カスタム</p>
+               <input
+                 id="color"
+                 type="color"
+                 value={color}
+                 onChange={(e) => {
+                   setColor(e.target.value);
+                   setIsInitialColor(false);
+                 }}
+                 className="block w-full h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+               />
+             </div>
           </div>
 
           <button
