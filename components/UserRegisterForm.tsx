@@ -1,111 +1,92 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import moment from 'moment-timezone';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-// ✅ moment-timezoneで全タイムゾーン取得
-const allTimezones = moment.tz.names();
+interface UserRegisterFormProps {
+  onComplete?: (data: { name: string; country: string; color: string }) => void;
+}
 
-// ✅ 色覚多様性に配慮したカラー
-const colorPalette = [
-  '#E60012', '#F39800', '#FFF100', '#8FC31F', '#009944',
-  '#009E96', '#00A0E9', '#0068B7', '#1D2088', '#920783',
-  '#EA68A2', '#A40000', '#E5177D', '#0079A5', '#B7DB67', '#F6C555',
-];
-
-export default function UserRegisterForm({
-  onComplete,
-}: {
-  onComplete: (data: { name: string; country: string; color: string }) => void;
-}) {
+export default function UserRegisterForm({ onComplete }: UserRegisterFormProps) {
+  const router = useRouter();
   const [name, setName] = useState('');
-  const [country, setCountry] = useState('Asia/Tokyo');
-  const [search, setSearch] = useState('');
-  const [color, setColor] = useState('');
+  const [country, setCountry] = useState('Japan');
+  const [color, setColor] = useState('#3B82F6');
 
-  // 🎨 ランダムカラー
-  useEffect(() => {
-    const random = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-    setColor(random);
-  }, []);
-
-  // ✅ 完了押下（どこもクリックしなくても即OK）
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      alert('ニックネームを入力してください');
-      return;
+    if (name.trim()) {
+      const userData = { name: name.trim(), country, color };
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      if (onComplete) {
+        onComplete(userData);
+      } else {
+        router.push('/calendar');
+      }
     }
-    onComplete({ name, country, color });
   };
 
-  // 🔍 検索フィルター
-  const filteredTimezones = allTimezones.filter((tz) =>
-    tz.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col items-center space-y-6 w-80 p-6 bg-white rounded-xl shadow-lg transition"
-    >
-      {/* タイトル */}
-      <h1 className="text-3xl font-extrabold text-gray-900 tracking-wide mb-2">
-        ユーザー登録
-      </h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-md">
+        <h2 className="text-center text-3xl font-bold text-gray-900">
+          ユーザー登録
+        </h2>
+        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              お名前
+            </label>
+            <input
+              id="name"
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="country" className="block text-sm font-medium text-gray-700">
+              国
+            </label>
+            <select
+              id="country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="Japan">日本</option>
+              <option value="United States">アメリカ</option>
+              <option value="United Kingdom">イギリス</option>
+              <option value="Australia">オーストラリア</option>
+              <option value="China">中国</option>
+            </select>
+          </div>
 
-      {/* ニックネーム */}
-      <div className="w-full">
-        <label className="text-sm text-gray-400 mb-1 block">ニックネーム</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="例: Mana"
-          className="w-full border border-gray-300 rounded px-3 py-2 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+          <div>
+            <label htmlFor="color" className="block text-sm font-medium text-gray-700">
+              お気に入りの色
+            </label>
+            <input
+              id="color"
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="mt-1 block w-full h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            登録
+          </button>
+        </form>
       </div>
-
-      {/* 国選択 */}
-      <div className="w-full">
-        <label className="text-sm text-gray-400 mb-1 block">国・地域を選択</label>
-        <input
-          type="text"
-          placeholder="検索（Tokyo, New York など）"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-2 text-gray-700 placeholder-gray-400 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
-        />
-        <select
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          size={6}
-        >
-          {filteredTimezones.map((tz) => (
-            <option key={tz} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* カラー */}
-      <div className="flex flex-col items-center space-y-2">
-        <p className="text-gray-600 text-sm">あなたのカラー</p>
-        <div
-          className="w-12 h-12 rounded-full border border-gray-400 shadow-md"
-          style={{ backgroundColor: color }}
-        ></div>
-      </div>
-
-      {/* 完了 */}
-      <button
-        type="submit"
-        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-8 rounded-full shadow-md transition active:scale-95"
-      >
-        完了
-      </button>
-    </form>
+    </div>
   );
 }
