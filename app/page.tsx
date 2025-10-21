@@ -2,13 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isSessionValid } from '@/utils/session';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (!user) {
+    if (!isSessionValid()) {
       router.push('/user');
     } else {
       router.push('/calendar');

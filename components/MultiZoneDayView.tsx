@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import dayjs from '@/utils/time';
 import { Plus } from 'lucide-react';
+import { getUserSession } from '@/utils/session';
+import TimezoneSelectorModal from './TimezoneSelectorModal';
 
 type Props = {
   dateISO: string;
@@ -13,9 +15,24 @@ export default function MultiZoneDayView({
   dateISO,
   baselineTz = 'Asia/Tokyo',
 }: Props) {
-  const [zones, setZones] = useState(['Asia/Tokyo', 'America/New_York']);
+  const [zones, setZones] = useState<string[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const globalHeaderRef = useRef<HTMLDivElement>(null);
   const zoneHeaderRowRef = useRef<HTMLDivElement>(null);
+
+  // ユーザーセッションからタイムゾーンを取得して初期化
+  useEffect(() => {
+    const userSession = getUserSession();
+    if (userSession && userSession.timezone) {
+      setZones([userSession.timezone]);
+      setIsInitialized(true);
+    } else {
+      // フォールバック: デフォルトのタイムゾーン
+      setZones([baselineTz]);
+      setIsInitialized(true);
+    }
+  }, [baselineTz]);
 
   // ✅ 各ヘッダーの高さを取得し、Sticky位置を動的に調整
   useLayoutEffect(() => {
@@ -38,16 +55,22 @@ export default function MultiZoneDayView({
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  const addZone = () => {
-    const candidates = [
-      'Europe/London',
-      'Australia/Sydney',
-      'Asia/Shanghai',
-      'America/Los_Angeles',
-    ];
-    const next = candidates.find((z) => !zones.includes(z));
-    if (next) setZones((prev) => [...prev, next]);
+  const handleAddZone = () => {
+    setIsModalOpen(true);
   };
+
+  const handleTimezoneSelect = (timezone: string) => {
+    setZones((prev) => [...prev, timezone]);
+  };
+
+  // 初期化が完了するまでローディング表示
+  if (!isInitialized) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-gray-600">読み込み中...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-white">
@@ -60,7 +83,7 @@ export default function MultiZoneDayView({
           {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
         </h2>
         <button
-          onClick={addZone}
+          onClick={handleAddZone}
           className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
         >
           <Plus size={18} />
@@ -130,6 +153,14 @@ export default function MultiZoneDayView({
           </React.Fragment>
         ))}
       </div>
+
+      {/* タイムゾーン選択モーダル */}
+      <TimezoneSelectorModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSelect={handleTimezoneSelect}
+        existingTimezones={zones}
+      />
     </main>
   );
 }

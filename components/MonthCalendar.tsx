@@ -63,13 +63,26 @@ export default function MonthCalendar() {
             {currentMonth.format('YYYY年 M月')}
           </h2>
 
-          <button
-            onClick={goNext}
-            className="p-2 rounded-full hover:bg-gray-100 transition"
-            title="次の月"
-          >
-            <ChevronRight className="w-6 h-6 text-gray-700" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goNext}
+              className="p-2 rounded-full hover:bg-gray-100 transition"
+              title="次の月"
+            >
+              <ChevronRight className="w-6 h-6 text-gray-700" />
+            </button>
+            
+            <button
+              onClick={() => {
+                localStorage.removeItem('user');
+                router.push('/user');
+              }}
+              className="px-3 py-1 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 transition"
+              title="ログアウト"
+            >
+              ログアウト
+            </button>
+          </div>
         </div>
 
         {/* === 曜日ヘッダー === */}
