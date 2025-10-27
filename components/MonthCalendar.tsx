@@ -6,6 +6,7 @@ import 'dayjs/locale/ja';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useState, useMemo, useEffect, useState as useReactState } from 'react';
 import { getEventsForDate } from '@/utils/events';
+import { getUserSession } from '@/utils/session';
 import EventForm from './EventForm';
 
 dayjs.locale('ja');
@@ -144,7 +145,11 @@ export default function MonthCalendar() {
             const isCurrentMonth = d.isSame(currentMonth, 'month');
             const isToday = d.isSame(dayjs(), 'day');
             const dateStr = d.format('YYYY-MM-DD');
-            const events = getEventsForDate(dateStr, 'Asia/Tokyo');
+            
+            // ユーザーのタイムゾーンを取得
+            const userSession = getUserSession();
+            const timezone = userSession?.timezone || 'Asia/Tokyo';
+            const events = getEventsForDate(dateStr, timezone);
 
             return (
               <div

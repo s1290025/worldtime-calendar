@@ -7,6 +7,8 @@ import { Plus, ArrowLeft } from 'lucide-react';
 import { getUserSession } from '@/utils/session';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
 import TimezoneSelectorModal from './TimezoneSelectorModal';
+import EventForm from './EventForm';
+import { getEventsForDate } from '@/utils/events';
 
 type Props = {
   dateISO: string;
@@ -21,21 +23,42 @@ export default function MultiZoneDayView({
   const [zones, setZones] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEventFormOpen, setIsEventFormOpen] = useState(false);
   const globalHeaderRef = useRef<HTMLDivElement>(null);
   const zoneHeaderRowRef = useRef<HTMLDivElement>(null);
-
-  // ユーザーセッションからタイムゾーンを取得して初期化
+  
+  // タイムゾーン状態をlocalStorageに保存（次回アクセス時に復元）
   useEffect(() => {
+    const savedZones = localStorage.getItem(`dayview_zones_${dateISO}`);
+    if (savedZones) {
+      try {
+        const parsed = JSON.parse(savedZones);
+        setZones(parsed);
+        setIsInitialized(true);
+        return;
+      } catch (e) {
+        console.error('Failed to parse saved zones:', e);
+      }
+    }
+    
+    // 保存されていない場合は、ユーザーセッションから初期化
     const userSession = getUserSession();
     if (userSession && userSession.timezone) {
       setZones([userSession.timezone]);
       setIsInitialized(true);
     } else {
-      // フォールバック: デフォルトのタイムゾーン
       setZones([baselineTz]);
       setIsInitialized(true);
     }
-  }, [baselineTz]);
+  }, [dateISO, baselineTz]);
+  
+  // タイムゾーンの変更をlocalStorageに保存
+  useEffect(() => {
+    if (isInitialized && zones.length > 0) {
+      localStorage.setItem(`dayview_zones_${dateISO}`, JSON.stringify(zones));
+    }
+  }, [zones, isInitialized, dateISO]);
+
 
   // ✅ 各ヘッダーの高さを取得し、Sticky位置を動的に調整
   useLayoutEffect(() => {
@@ -65,6 +88,25 @@ export default function MultiZoneDayView({
   const handleTimezoneSelect = (timezone: string) => {
     setZones((prev) => [...prev, timezone]);
   };
+  
+  const handleEventFormClose = () => {
+    setIsEventFormOpen(false);
+  };
+
+  const handleEventSave = () => {
+    // 予定が保存された時の処理（再レンダリングをトリガー）
+    setZones([...zones]); // 強制的に再レンダリング
+  };
+
+  // 背景色に応じて適切な文字色を決定する関数
+  function getContrastColor(backgroundColor: string): string {
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+  }
 
   // タイムゾーンから都市名と国名を取得
   const getCityName = (timezone: string): string => {
@@ -113,13 +155,24 @@ export default function MultiZoneDayView({
             {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
           </h2>
         </div>
-        <button
-          onClick={handleAddZone}
-          className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          国を追加
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsEventFormOpen(true)}
+            className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition"
+            title="予定を追加"
+          >
+            <Plus size={16} />
+            予定追加
+          </button>
+          <button
+            onClick={handleAddZone}
+            className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition"
+            title="国を追加"
+          >
+            <Plus size={18} />
+            国を追加
+          </button>
+        </div>
       </div>
 
       {/* ===== タイムゾーンヘッダー ===== */}
@@ -167,6 +220,18 @@ export default function MultiZoneDayView({
                 .second(0);
               const local = base.tz(tz);
 
+              // この時間帯の予定を取得
+              const userSession = getUserSession();
+              const timezone = userSession?.timezone || 'Asia/Tokyo';
+              const eventsInThisHour = getEventsForDate(dateISO, timezone).filter(event => {
+                const eventStart = dayjs(event.startTime);
+                const eventEnd = dayjs(event.endTime);
+                const hourStart = local.startOf('hour');
+                const hourEnd = local.endOf('hour');
+                
+                return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
+              });
+
               return (
                 <React.Fragment key={`${tz}-${h}`}>
                   {/* 時間セル（線の高さに合わせる） */}
@@ -177,7 +242,22 @@ export default function MultiZoneDayView({
                   </div>
 
                   {/* 予定欄セル */}
-                  <div className="h-16 border-b border-r border-gray-200 bg-white" />
+                  <div className="h-16 border-b border-r border-gray-200 bg-white relative">
+                    {eventsInThisHour.map(event => (
+                      <div
+                        key={event.id}
+                        className="absolute inset-x-0 top-0 h-full text-xs p-1 rounded font-semibold shadow-sm overflow-hidden"
+                        style={{ 
+                          backgroundColor: event.color,
+                          color: getContrastColor(event.color),
+                          height: '100%'
+                        }}
+                        title={event.title}
+                      >
+                        {event.title}
+                      </div>
+                    ))}
+                  </div>
                 </React.Fragment>
               );
             })}
@@ -191,6 +271,15 @@ export default function MultiZoneDayView({
         onClose={() => setIsModalOpen(false)}
         onSelect={handleTimezoneSelect}
         existingTimezones={zones}
+      />
+      
+      {/* 予定入力フォーム */}
+      <EventForm
+        isOpen={isEventFormOpen}
+        onClose={handleEventFormClose}
+        onSave={handleEventSave}
+        initialDate={dateISO}
+        initialTimezone={baselineTz}
       />
     </main>
   );

@@ -1,40 +1,63 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# World Time Calendar
 
-## Getting Started
+調整さん風の共有カレンダーアプリ。複数タイムゾーン対応の日時調整が可能です。
 
-First, run the development server:
+## ✨ 機能
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 🌍 複数タイムゾーン対応のカレンダー
+- 👥 共有カレンダー機能（URLで参加）
+- 🎨 ユーザー別の色分け
+- 📅 日/週/月表示
+- 📝 予定の追加・編集・削除
+- 🔍 時差を考慮した時間表示
+
+## 🚀 デプロイ
+
+このアプリをVercelとSupabaseでデプロイする方法：
+
+### 1. Supabase プロジェクトの作成
+
+詳細は `docs/SUPABASE_SETUP.md` を参照してください。
+
+### 2. 環境変数の設定
+
+`.env.local` ファイルを作成：
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Vercel へのデプロイ
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+詳細は `docs/DEPLOYMENT.md` を参照してください。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ 開発
 
-## Learn More
+```bash
+# 依存関係のインストール
+npm install
 
-To learn more about Next.js, take a look at the following resources:
+# 開発サーバーの起動
+npm run dev
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# ビルド
+npm run build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# プロダクション起動
+npm start
+```
 
-## Deploy on Vercel
+## 📚 ドキュメント
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [Supabase セットアップガイド](docs/SUPABASE_SETUP.md)
+- [デプロイメントガイド](docs/DEPLOYMENT.md)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# worldtime-calendar
->>>>>>> e9be7a81219cf94a90592ede54c1387f0231dc7b
+## 🎯 使用技術
+
+- **Next.js 15** - React フレームワーク
+- **Supabase** - バックエンド（データベース）
+- **Vercel** - デプロイメント
+- **Tailwind CSS** - スタイリング
+- **dayjs** - 日付操作
+- **moment-timezone** - タイムゾーン処理
