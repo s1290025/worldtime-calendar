@@ -155,24 +155,14 @@ export default function MultiZoneDayView({
             {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsEventFormOpen(true)}
-            className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition"
-            title="予定を追加"
-          >
-            <Plus size={16} />
-            予定追加
-          </button>
-          <button
-            onClick={handleAddZone}
-            className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition"
-            title="国を追加"
-          >
-            <Plus size={18} />
-            国を追加
-          </button>
-        </div>
+        <button
+          onClick={handleAddZone}
+          className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition"
+          title="国を追加"
+        >
+          <Plus size={18} />
+          国を追加
+        </button>
       </div>
 
       {/* ===== タイムゾーンヘッダー ===== */}
@@ -281,6 +271,21 @@ export default function MultiZoneDayView({
         initialDate={dateISO}
         initialTimezone={baselineTz}
       />
+      
+      {/* フローティングアクションボタン - 予定追加 */}
+      <button
+        onClick={() => {
+          console.log('予定追加ボタンがクリックされました');
+          setIsEventFormOpen(true);
+        }}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-blue-500 text-white rounded-full shadow-2xl hover:bg-blue-600 hover:shadow-blue-500/50 transition-all hover:scale-110 flex items-center justify-center z-50"
+        title="予定を追加"
+        style={{
+          boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(59, 130, 246, 0.2)'
+        }}
+      >
+        <Plus size={28} strokeWidth={3} />
+      </button>
     </main>
   );
 }
