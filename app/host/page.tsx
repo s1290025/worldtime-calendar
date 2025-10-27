@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createSharedCalendar } from '@/utils/share';
+import { createSharedCalendar, type SharedCalendar } from '@/utils/share';
 import { Calendar, Users, Copy, Check } from 'lucide-react';
 
 export default function HostPage() {
   const router = useRouter();
   const [calendarName, setCalendarName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [createdCalendar, setCreatedCalendar] = useState<any>(null);
+  const [createdCalendar, setCreatedCalendar] = useState<SharedCalendar | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

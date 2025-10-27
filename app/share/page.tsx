@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { findCalendarById } from '@/utils/share';
-import { Link, Users, Calendar } from 'lucide-react';
+import { Link } from 'lucide-react';
 
 export default function SharePage() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, Clock, MapPin, Palette } from 'lucide-react';
+import { X, Calendar, MapPin, Palette } from 'lucide-react';
 import { EventFormData, createEventFromForm, saveEvent } from '@/utils/events';
 import { getUserSession } from '@/utils/session';
 import { getShareSession, getSharedCalendars } from '@/utils/share';

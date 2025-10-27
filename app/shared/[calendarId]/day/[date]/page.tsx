@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getSharedCalendars, getShareSession } from '@/utils/share';
+import { getSharedCalendars, getShareSession, type SharedCalendar, type ShareSession, type SharedUser } from '@/utils/share';
 import { getUserSession } from '@/utils/session';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
 import dayjs from '@/utils/time';
@@ -15,8 +15,8 @@ export default function SharedDayView() {
   const calendarId = params.calendarId as string;
   const dateISO = params.date as string;
   
-  const [calendar, setCalendar] = useState<any>(null);
-  const [shareSession, setShareSession] = useState<any>(null);
+  const [calendar, setCalendar] = useState<SharedCalendar | null>(null);
+  const [shareSession, setShareSession] = useState<ShareSession | null>(null);
   const [zones, setZones] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -117,7 +117,7 @@ export default function SharedDayView() {
             {calendar.name} - 参加者 ({calendar.participants.length}人)
           </span>
           <div className="flex gap-2">
-            {calendar.participants.map((participant: any) => (
+            {calendar.participants.map((participant: SharedUser) => (
               <div
                 key={participant.id}
                 className="flex items-center gap-1 px-2 py-1 bg-white rounded-md border"

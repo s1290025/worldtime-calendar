@@ -111,7 +111,7 @@ export default function DayView({
   }, [nowInfo]);
 
   // クリックで新規イベント入口（実装は後で）
-  const handleCellClick = (hour: number) => {
+  const handleCellClick = (_hour: number) => {
     // ここでモーダル起動などに繋げる
     // console.log('create at', hour, ':00');
   };

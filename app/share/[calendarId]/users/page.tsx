@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getSharedCalendars, addUserToCalendar, getAvailableColors, getRandomAvailableColor, saveShareSession } from '@/utils/share';
+import { getSharedCalendars, addUserToCalendar, getAvailableColors, getRandomAvailableColor, saveShareSession, type SharedCalendar, type SharedUser } from '@/utils/share';
 import { Users, UserPlus, Palette } from 'lucide-react';
 
 export default function UserSelectionPage() {
@@ -10,7 +10,7 @@ export default function UserSelectionPage() {
   const params = useParams();
   const calendarId = params.calendarId as string;
   
-  const [calendar, setCalendar] = useState<any>(null);
+  const [calendar, setCalendar] = useState<SharedCalendar | null>(null);
   const [userName, setUserName] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [availableColors, setAvailableColors] = useState<string[]>([]);
@@ -90,7 +90,7 @@ export default function UserSelectionPage() {
               参加者 ({calendar.participants.length}人)
             </h3>
             <div className="space-y-2">
-              {calendar.participants.map((participant: any) => (
+              {calendar.participants.map((participant: SharedUser) => (
                 <div
                   key={participant.id}
                   className="flex items-center gap-3 p-2 bg-gray-50 rounded-md"

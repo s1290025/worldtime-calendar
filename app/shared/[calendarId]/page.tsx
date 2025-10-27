@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getSharedCalendars, getShareSession } from '@/utils/share';
+import { getSharedCalendars, getShareSession, type SharedCalendar, type ShareSession, type SharedUser } from '@/utils/share';
 import { getEventsForDate } from '@/utils/events';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
@@ -16,10 +16,10 @@ export default function SharedCalendarPage() {
   const params = useParams();
   const calendarId = params.calendarId as string;
   
-  const [calendar, setCalendar] = useState<any>(null);
+  const [calendar, setCalendar] = useState<SharedCalendar | null>(null);
   const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
-  const [shareSession, setShareSession] = useState<any>(null);
+  const [shareSession, setShareSession] = useState<ShareSession | null>(null);
 
   useEffect(() => {
     const calendars = getSharedCalendars();
@@ -135,7 +135,7 @@ export default function SharedCalendarPage() {
               参加者 ({calendar.participants.length}人)
             </span>
             <div className="flex gap-2">
-              {calendar.participants.map((participant: any) => (
+              {calendar.participants.map((participant: SharedUser) => (
                 <div
                   key={participant.id}
                   className="flex items-center gap-1 px-2 py-1 bg-white rounded-md border"

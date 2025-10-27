@@ -20,45 +20,14 @@ export default function MultiZoneDayView({
   baselineTz = 'Asia/Tokyo',
 }: Props) {
   const router = useRouter();
-  // 初回マウント時にlocalStorageから読み込む
-  const [zones, setZones] = useState<string[]>(() => {
-    if (typeof window === 'undefined') {
-      return [baselineTz];
-    }
-    
-    const savedZones = localStorage.getItem('dayview_zones');
-    if (savedZones) {
-      try {
-        const parsed = JSON.parse(savedZones);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error('Failed to parse saved zones:', e);
-      }
-    }
-    
-    // 保存されていない場合は、ユーザーセッションから初期化
-    const userSession = getUserSession();
-    if (userSession && userSession.timezone) {
-      return [userSession.timezone];
-    }
-    
-    return [baselineTz];
-  });
+  
+  const [zones, setZones] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
   const globalHeaderRef = useRef<HTMLDivElement>(null);
   const zoneHeaderRowRef = useRef<HTMLDivElement>(null);
   
-  // タイムゾーンの変更をlocalStorageに保存（全日付で共通）
-  useEffect(() => {
-    if (zones.length > 0) {
-      localStorage.setItem('dayview_zones', JSON.stringify(zones));
-    }
-  }, [zones]);
-  
-  // dateISOが変わったときに、localStorageから読み直す
+  // localStorageから読み込む
   useEffect(() => {
     const savedZones = localStorage.getItem('dayview_zones');
     if (savedZones) {
@@ -66,12 +35,29 @@ export default function MultiZoneDayView({
         const parsed = JSON.parse(savedZones);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setZones(parsed);
+        } else {
+          // 空の場合、デフォルト値を設定
+          const userSession = getUserSession();
+          setZones([userSession?.timezone || baselineTz]);
         }
       } catch (e) {
-        console.error('Failed to parse saved zones on date change:', e);
+        console.error('Failed to parse saved zones:', e);
+        const userSession = getUserSession();
+        setZones([userSession?.timezone || baselineTz]);
       }
+    } else {
+      // localStorageにない場合
+      const userSession = getUserSession();
+      setZones([userSession?.timezone || baselineTz]);
     }
-  }, [dateISO]);
+  }, [baselineTz]);
+  
+  // タイムゾーンの変更をlocalStorageに保存
+  const handleTimezoneSelect = (timezone: string) => {
+    const newZones = [...zones, timezone];
+    setZones(newZones);
+    localStorage.setItem('dayview_zones', JSON.stringify(newZones));
+  };
 
 
   // ✅ 各ヘッダーの高さを取得し、Sticky位置を動的に調整
@@ -97,15 +83,6 @@ export default function MultiZoneDayView({
 
   const handleAddZone = () => {
     setIsModalOpen(true);
-  };
-
-  const handleTimezoneSelect = (timezone: string) => {
-    console.log('[追加] タイムゾーン:', timezone);
-    setZones((prev) => {
-      const newZones = [...prev, timezone];
-      console.log('[追加] 新しい配列:', newZones);
-      return newZones;
-    });
   };
   
   const handleEventFormClose = () => {
