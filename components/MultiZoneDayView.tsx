@@ -30,6 +30,7 @@ export default function MultiZoneDayView({
   // localStorageから読み込む
   useEffect(() => {
     const savedZones = localStorage.getItem('dayview_zones');
+    
     if (savedZones) {
       try {
         const parsed = JSON.parse(savedZones);
@@ -50,7 +51,7 @@ export default function MultiZoneDayView({
       const userSession = getUserSession();
       setZones([userSession?.timezone || baselineTz]);
     }
-  }, [baselineTz]);
+  }, [baselineTz, dateISO]);
   
   // タイムゾーンの変更をlocalStorageに保存
   const handleTimezoneSelect = (timezone: string) => {

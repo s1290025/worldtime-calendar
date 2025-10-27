@@ -21,6 +21,7 @@ export default function SharedDayView() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // カレンダー情報とセッション情報を読み込む
   useEffect(() => {
     const calendars = getSharedCalendars();
     const foundCalendar = calendars.find(c => c.id === calendarId);
@@ -39,23 +40,43 @@ export default function SharedDayView() {
     }
     
     setShareSession(session);
-
-    // ユーザーセッションからタイムゾーンを取得して初期化
-    const userSession = getUserSession();
-    if (userSession && userSession.timezone) {
-      setZones([userSession.timezone]);
-    } else {
-      setZones(['Asia/Tokyo']);
-    }
     setIsInitialized(true);
   }, [calendarId, router]);
+  
+  // localStorageからタイムゾーンを読み込む
+  useEffect(() => {
+    const savedZones = localStorage.getItem('shared_dayview_zones');
+    
+    if (savedZones) {
+      try {
+        const parsed = JSON.parse(savedZones);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setZones(parsed);
+        } else {
+          // 空の場合、デフォルト値を設定
+          const userSession = getUserSession();
+          setZones(userSession?.timezone ? [userSession.timezone] : ['Asia/Tokyo']);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved zones:', e);
+        const userSession = getUserSession();
+        setZones(userSession?.timezone ? [userSession.timezone] : ['Asia/Tokyo']);
+      }
+    } else {
+      // localStorageにない場合
+      const userSession = getUserSession();
+      setZones(userSession?.timezone ? [userSession.timezone] : ['Asia/Tokyo']);
+    }
+  }, [dateISO]);
 
   const handleAddZone = () => {
     setIsModalOpen(true);
   };
 
   const handleTimezoneSelect = (timezone: string) => {
-    setZones((prev) => [...prev, timezone]);
+    const newZones = [...zones, timezone];
+    setZones(newZones);
+    localStorage.setItem('shared_dayview_zones', JSON.stringify(newZones));
   };
 
   // タイムゾーンから都市名と国名を取得
