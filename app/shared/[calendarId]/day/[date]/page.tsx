@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getSharedCalendars, getShareSession, type SharedCalendar, type ShareSession, type SharedUser } from '@/utils/share';
 import { getUserSession } from '@/utils/session';
+import { getEvents, type Event } from '@/utils/events';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
 import dayjs from '@/utils/time';
-import { Plus, ArrowLeft, Users } from 'lucide-react';
+import { Plus, ArrowLeft, Users, Calendar } from 'lucide-react';
 import TimezoneSelectorModal from '@/components/TimezoneSelectorModal';
+import EventForm from '@/components/EventForm';
 
 export default function SharedDayView() {
   const router = useRouter();
@@ -20,6 +22,12 @@ export default function SharedDayView() {
   const [zones, setZones] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const [visibleDates, setVisibleDates] = useState<Record<string, string>>({});
+  const [isEventFormOpen, setIsEventFormOpen] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState<{ date: string; time: string; timezone: string } | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<Event | undefined>(undefined);
 
   // カレンダー情報とセッション情報を読み込む
   useEffect(() => {
@@ -69,6 +77,63 @@ export default function SharedDayView() {
     }
   }, [dateISO]);
 
+  // 予定を取得
+  useEffect(() => {
+    const allEvents = getEvents();
+    setEvents(allEvents);
+  }, [dateISO]);
+  
+  // 初期スクロール位置を24時の位置に設定
+  useEffect(() => {
+    if (timelineRef.current) {
+      // 24時の位置にスクロール（-24から数えて24番目）
+      timelineRef.current.scrollTop = 24 * 64; // 64pxは各行の高さ
+    }
+  }, [isInitialized]);
+  
+  // スクロール位置を監視して日付を更新
+  useEffect(() => {
+    const scrollContainer = timelineRef.current;
+    if (!scrollContainer) return;
+    
+    const updateVisibleDates = () => {
+      const scrollTop = scrollContainer.scrollTop;
+      const rowIndex = Math.floor(scrollTop / 64); // 64pxは各行の高さ
+      const rowHour = -24 + rowIndex; // -24から始まる
+      
+      // 各タイムゾーンの日付を計算
+      const dates: Record<string, string> = {};
+      
+      zones.forEach((tz) => {
+        const baselineDayStart = dayjs(dateISO).tz('Asia/Tokyo').startOf('day');
+        let baselineTimeAtRow;
+        
+        if (rowHour < 0) {
+          baselineTimeAtRow = baselineDayStart.add(rowHour, 'hour');
+        } else if (rowHour >= 25) {
+          baselineTimeAtRow = baselineDayStart.add(rowHour - 24, 'hour').add(1, 'day');
+        } else if (rowHour === 24) {
+          baselineTimeAtRow = baselineDayStart.add(24, 'hour');
+        } else {
+          baselineTimeAtRow = baselineDayStart.add(rowHour, 'hour');
+        }
+        
+        const tzTimeAtRow = baselineTimeAtRow.tz(tz);
+        const tzDate = tzTimeAtRow.format('M/D');
+        dates[tz] = tzDate;
+      });
+      
+      setVisibleDates(dates);
+    };
+    
+    updateVisibleDates();
+    scrollContainer.addEventListener('scroll', updateVisibleDates);
+    
+    return () => {
+      scrollContainer.removeEventListener('scroll', updateVisibleDates);
+    };
+  }, [zones, dateISO]);
+
   const handleAddZone = () => {
     setIsModalOpen(true);
   };
@@ -77,6 +142,37 @@ export default function SharedDayView() {
     const newZones = [...zones, timezone];
     setZones(newZones);
     localStorage.setItem('shared_dayview_zones', JSON.stringify(newZones));
+  };
+
+  const handleCellClick = (date: string, hour: number, timezone: string) => {
+    const time = `${hour.toString().padStart(2, '0')}:00`;
+    setSelectedDateTime({ date, time, timezone });
+    setIsEventFormOpen(true);
+  };
+
+  const handleEventSave = () => {
+    // イベントリストを更新
+    const allEvents = getEvents();
+    setEvents(allEvents);
+  };
+
+  const handleAddEvent = () => {
+    // 現在の日付とデフォルトのタイムゾーンで予定を追加
+    const defaultTz = zones[0] || 'Asia/Tokyo';
+    setSelectedDateTime({ 
+      date: dateISO, 
+      time: '09:00', 
+      timezone: defaultTz 
+    });
+    setSelectedEvent(undefined);
+    setIsEventFormOpen(true);
+  };
+
+  const handleEventClick = (event: Event, e: React.MouseEvent) => {
+    e.stopPropagation(); // 親要素のクリックイベントを防ぐ
+    setSelectedEvent(event);
+    setSelectedDateTime(null);
+    setIsEventFormOpen(true);
   };
 
   // タイムゾーンから都市名と国名を取得
@@ -102,11 +198,11 @@ export default function SharedDayView() {
     );
   }
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const hours = Array.from({ length: 25 }, (_, i) => i); // 0-24時
 
   return (
-    <main className="min-h-screen bg-white">
-      {/* ===== 日付ヘッダー ===== */}
+    <main className="h-screen flex flex-col bg-white">
+      {/* ===== ヘッダー ===== */}
       <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <button
@@ -117,100 +213,213 @@ export default function SharedDayView() {
             <ArrowLeft size={16} />
             カレンダー
           </button>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
-          </h2>
         </div>
-        <button
-          onClick={handleAddZone}
-          className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
-        >
-          <Plus size={18} />
-          国を追加
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAddEvent}
+            className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition"
+            title="予定を追加"
+          >
+            <Calendar size={18} />
+            予定を追加
+          </button>
+          <button
+            onClick={handleAddZone}
+            className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
+          >
+            <Plus size={18} />
+            国を追加
+          </button>
+        </div>
       </div>
 
-      {/* ===== 参加者一覧 === */}
-      <div className="px-4 py-2 bg-gray-50 border-b">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">
-            {calendar.name} - 参加者 ({calendar.participants.length}人)
-          </span>
-          <div className="flex gap-2">
-            {calendar.participants.map((participant: SharedUser) => (
-              <div
-                key={participant.id}
-                className="flex items-center gap-1 px-2 py-1 bg-white rounded-md border"
-              >
+      {/* ===== 参加者一覧 + タイムゾーンヘッダー（スクロール時も固定） ===== */}
+      <div className="sticky top-[60px] z-20 bg-white">
+        {/* 参加者一覧 */}
+        <div className="px-4 py-2 bg-gray-50 border-b">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">
+              {calendar.name} - 参加者 ({calendar.participants.length}人)
+            </span>
+            <div className="flex gap-2">
+              {calendar.participants.map((participant: SharedUser) => (
                 <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: participant.color }}
-                />
-                <span className="text-xs text-gray-700">
-                  {participant.name}
-                </span>
-              </div>
-            ))}
+                  key={participant.id}
+                  className="flex items-center gap-1 px-2 py-1 bg-white rounded-md border"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: participant.color }}
+                  />
+                  <span className="text-xs text-gray-700">
+                    {participant.name}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* ===== タイムゾーンヘッダー ===== */}
-      <div className="sticky z-20 bg-white border-b">
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
-          }}
-        >
-          {zones.map((tz) => (
-            <div key={tz} className="contents">
-              {/* ← 時間列ヘッダー（空） */}
-              <div className="h-[64px] border-r bg-white" />
-
-              {/* ← 都市名（国名）ヘッダー */}
-              <div className="h-[64px] border-r bg-white flex items-center justify-center font-bold text-gray-800">
-                {getCityName(tz)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ===== タイムライン本体 ===== */}
-      <div
-        className="grid border-t border-gray-200 pt-[20px]"
-        style={{
-          gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
-        }}
-      >
-        {hours.map((h) => (
-          <div key={h} className="contents">
+        
+        {/* タイムゾーンヘッダー */}
+        <div className="border-b bg-white shadow-sm">
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
+            }}
+          >
+            {/* 各タイムゾーンのヘッダー */}
             {zones.map((tz) => {
-              const base = dayjs(dateISO)
-                .tz('Asia/Tokyo')
-                .hour(h)
-                .minute(0)
-                .second(0);
-              const local = base.tz(tz);
-
+              const timezoneOption = TIMEZONE_OPTIONS.find(option => option.value === tz);
+              let cityName = '';
+              let countryName = '';
+              
+              if (timezoneOption) {
+                const match = timezoneOption.label.match(/^([^(]+)\s*\(([^)]+)\)/);
+                if (match) {
+                  cityName = match[1].trim();
+                  countryName = match[2].trim();
+                } else {
+                  cityName = timezoneOption.label;
+                  countryName = '';
+                }
+              } else {
+                cityName = tz.split('/').pop() || tz;
+                countryName = '';
+              }
+              
+              // 表示されている日付を取得（スクロール位置から）
+              const tzDate = visibleDates[tz] || dayjs(dateISO).format('M/D');
+              
               return (
-                <div key={`${tz}-${h}`} className="contents">
-                  {/* 時間セル */}
-                  <div className="h-16 border-b border-gray-200 flex items-start justify-end pr-2 text-gray-700 text-sm font-medium relative">
-                    <span className="absolute top-0 -translate-y-1/2">
-                      {local.format('HH:mm')}
-                    </span>
+                <React.Fragment key={tz}>
+                  {/* 日付セル */}
+                  <div className="h-[60px] border-r bg-white flex items-center justify-center">
+                    <div className="text-xs font-bold text-blue-600">{tzDate}</div>
                   </div>
-
-                  {/* 予定欄セル */}
-                  <div className="h-16 border-b border-r border-gray-200 bg-white" />
-                </div>
+                  
+                  {/* 国名セル */}
+                  <div className="h-[60px] border-r bg-white flex flex-col items-center justify-center">
+                    <div className="font-bold text-gray-800 text-sm">{cityName}</div>
+                    <div className="text-xs text-gray-500">{countryName}</div>
+                  </div>
+                </React.Fragment>
               );
             })}
           </div>
-        ))}
+        </div>
+      </div>
+
+      {/* ===== タイムライン本体（スクロール可能） ===== */}
+      <div ref={timelineRef} className="flex-1 overflow-y-auto">
+        <div className="grid" style={{ gridTemplateColumns: zones.map(() => '80px 1fr').join(' ') }}>
+        {/* 前後1日分（-24から48まで、72時間分）を表示 */}
+        {(() => {
+          const displayHours = [];
+          for (let h = -24; h <= 48; h++) {
+            displayHours.push(h);
+          }
+          
+          return displayHours.flatMap((rowHour) => {
+            // 各タイムゾーンの列
+            return zones.flatMap((tz) => {
+              const baselineDayStart = dayjs(dateISO).tz('Asia/Tokyo').startOf('day');
+              let baselineTimeAtRow;
+              
+              if (rowHour < 0) {
+                baselineTimeAtRow = baselineDayStart.add(rowHour, 'hour');
+              } else if (rowHour >= 25) {
+                baselineTimeAtRow = baselineDayStart.add(rowHour - 24, 'hour').add(1, 'day');
+              } else if (rowHour === 24) {
+                baselineTimeAtRow = baselineDayStart.add(24, 'hour');
+              } else {
+                baselineTimeAtRow = baselineDayStart.add(rowHour, 'hour');
+              }
+              
+              const tzTimeAtRow = baselineTimeAtRow.tz(tz);
+              const tzHour = tzTimeAtRow.hour();
+              const tzDayAtRow = tzTimeAtRow.format('YYYY-MM-DD');
+              
+              // dateISOのその日の0-24時以内かどうかを判定
+              // 各タイムゾーンでのdateISOの0-24時を取得
+              const tzDayStart = dayjs.tz(dateISO, tz).startOf('day');
+              const tzDayEnd = tzDayStart.add(24, 'hour');
+              const isInRange = (tzTimeAtRow.isSame(tzDayStart) || tzTimeAtRow.isAfter(tzDayStart)) && tzTimeAtRow.isBefore(tzDayEnd);
+              const isOutOfRange = !isInRange;
+              
+              // 前の時刻を計算（日付が変わったかチェック）
+              const prevBaselineTime = baselineTimeAtRow.subtract(1, 'hour');
+              const prevTzTime = prevBaselineTime.tz(tz);
+              const prevTzDay = prevTzTime.format('YYYY-MM-DD');
+              const isDateChanged = tzDayAtRow !== prevTzDay;
+              
+              // この時間帯に該当する予定を取得
+              const hourStart = tzTimeAtRow.startOf('hour');
+              const hourEnd = tzTimeAtRow.endOf('hour');
+              const hourEvents = events.filter(event => {
+                const eventStart = dayjs(event.startTime);
+                const eventEnd = dayjs(event.endTime);
+                return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
+              });
+              
+              return [
+                // 時刻列
+                <div key={`time-${tz}-${rowHour}`} className={`border-b border-r border-gray-200 h-16 relative ${
+                  isOutOfRange ? 'bg-gray-50' : 'bg-white'
+                }`}>
+                  {/* 時刻 */}
+                  <div className={`absolute top-0 right-0 pr-2 text-sm font-medium ${
+                    isOutOfRange ? 'text-gray-400' : 'text-gray-700'
+                  }`}>
+                    {tzHour}:00
+                  </div>
+                  
+                  {/* 日付（変わった場合のみ表示） */}
+                  {isDateChanged && (
+                    <div className="absolute top-0 left-0 pl-1 pt-0.5">
+                      <span className="text-xs font-bold text-blue-600">
+                        {dayjs(tzDayAtRow).format('M/D')}
+                      </span>
+                    </div>
+                  )}
+                </div>,
+                // イベント列
+                <div 
+                  key={`event-${tz}-${rowHour}`} 
+                  className={`border-b border-r border-gray-200 h-16 relative cursor-pointer hover:bg-gray-100 ${
+                    isOutOfRange ? 'bg-gray-50' : 'bg-white'
+                  }`}
+                  onClick={() => {
+                    if (!isOutOfRange) {
+                      const tzDateStr = tzTimeAtRow.format('YYYY-MM-DD');
+                      handleCellClick(tzDateStr, tzHour, tz);
+                    }
+                  }}
+                >
+                  {hourEvents.map((event, idx) => (
+                    <div
+                      key={event.id}
+                      className="px-2 py-1 rounded text-xs font-medium truncate cursor-pointer hover:opacity-70"
+                      style={{
+                        backgroundColor: event.color + '20',
+                        color: event.color,
+                        borderLeft: `3px solid ${event.color}`,
+                        marginTop: `${idx * 20}px`,
+                        height: '60px',
+                      }}
+                      title={event.title}
+                      onClick={(e) => handleEventClick(event, e)}
+                    >
+                      {event.title}
+                    </div>
+                  ))}
+                </div>,
+              ];
+            });
+          });
+        })()}
+        </div>
       </div>
 
       {/* タイムゾーン選択モーダル */}
@@ -220,6 +429,23 @@ export default function SharedDayView() {
         onSelect={handleTimezoneSelect}
         existingTimezones={zones}
       />
+
+      {/* イベントフォーム */}
+      {isEventFormOpen && (
+        <EventForm
+          isOpen={isEventFormOpen}
+          onClose={() => {
+            setIsEventFormOpen(false);
+            setSelectedDateTime(null);
+            setSelectedEvent(undefined);
+          }}
+          onSave={handleEventSave}
+          event={selectedEvent}
+          initialDate={selectedDateTime?.date}
+          initialTime={selectedDateTime?.time}
+          initialTimezone={selectedDateTime?.timezone}
+        />
+      )}
     </main>
   );
 }

@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useState, useMemo, useEffect, useState as useReactState } from 'react';
-import { getEventsForDate } from '@/utils/events';
+import { getEventsForDate, type Event } from '@/utils/events';
 import { getUserSession } from '@/utils/session';
 import EventForm from './EventForm';
 
@@ -31,6 +31,7 @@ export default function MonthCalendar() {
   const [currentMonth, setCurrentMonth] = useReactState(dayjs());
   const [windowHeight, setWindowHeight] = useReactState(0);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | undefined>(undefined);
 
   // 画面高さを監視してレスポンシブ対応
   useEffect(() => {
@@ -62,10 +63,17 @@ export default function MonthCalendar() {
 
   const handleEventFormClose = () => {
     setIsEventFormOpen(false);
+    setSelectedEvent(undefined);
   };
 
   const handleEventSave = () => {
     // 予定が保存された時の処理（必要に応じて状態を更新）
+  };
+
+  const handleEventClick = (event: Event, e: React.MouseEvent) => {
+    e.stopPropagation(); // 親要素のクリックイベントを防ぐ
+    setSelectedEvent(event);
+    setIsEventFormOpen(true);
   };
 
   // ヘッダー＋曜日部分を引いた残りを週ごとに均等配分
@@ -171,12 +179,16 @@ export default function MonthCalendar() {
                   {events.slice(0, 3).map((event) => (
                     <div
                       key={event.id}
-                      className="text-xs p-1 rounded truncate font-semibold shadow-sm"
+                      className="text-xs p-1 rounded truncate font-semibold shadow-sm cursor-pointer hover:opacity-80 transition-opacity relative z-10"
                       style={{ 
                         backgroundColor: event.color,
                         color: getContrastColor(event.color)
                       }}
                       title={event.title}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEventClick(event, e);
+                      }}
                     >
                       {event.title}
                     </div>
@@ -192,7 +204,6 @@ export default function MonthCalendar() {
                 <div
                   className="absolute inset-0"
                   onClick={(e) => {
-                    e.stopPropagation();
                     router.push(`/day/${dateStr}`);
                   }}
                 />
@@ -207,6 +218,7 @@ export default function MonthCalendar() {
         isOpen={isEventFormOpen}
         onClose={handleEventFormClose}
         onSave={handleEventSave}
+        event={selectedEvent}
       />
     </div>
   );

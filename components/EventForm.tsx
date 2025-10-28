@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Calendar, MapPin, Palette } from 'lucide-react';
-import { EventFormData, createEventFromForm, saveEvent } from '@/utils/events';
+import { EventFormData, createEventFromForm, saveEvent, type Event } from '@/utils/events';
 import { getUserSession } from '@/utils/session';
 import { getShareSession, getSharedCalendars } from '@/utils/share';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
@@ -12,7 +12,9 @@ interface EventFormProps {
   onClose: () => void;
   onSave: () => void;
   initialDate?: string; // YYYY-MM-DD
+  initialTime?: string; // HH:mm
   initialTimezone?: string;
+  event?: Event; // 編集する予定（指定された場合は編集モード）
 }
 
 export default function EventForm({
@@ -20,15 +22,23 @@ export default function EventForm({
   onClose,
   onSave,
   initialDate,
-  initialTimezone
+  initialTime,
+  initialTimezone,
+  event
 }: EventFormProps) {
   const [formData, setFormData] = useState<EventFormData>({
     title: '',
     description: '',
     startDate: initialDate || new Date().toISOString().split('T')[0],
-    startTime: '09:00',
+    startTime: initialTime || '09:00',
     endDate: initialDate || new Date().toISOString().split('T')[0],
-    endTime: '10:00',
+    endTime: initialTime ? (() => {
+      // 1時間後を計算
+      const [hour, minute] = initialTime.split(':').map(Number);
+      const endDate = new Date();
+      endDate.setHours(hour + 1, minute);
+      return `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+    })() : '10:00',
     timezone: initialTimezone || 'Asia/Tokyo',
     allDay: false,
   });
@@ -56,6 +66,41 @@ export default function EventForm({
       }));
     }
   }, [initialDate]);
+
+  // 初期時刻が変更された時の処理
+  useEffect(() => {
+    if (initialTime) {
+      setFormData(prev => ({
+        ...prev,
+        startTime: initialTime,
+        endTime: (() => {
+          // 1時間後を計算
+          const [hour, minute] = initialTime.split(':').map(Number);
+          const endDate = new Date();
+          endDate.setHours(hour + 1, minute);
+          return `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+        })(),
+      }));
+    }
+  }, [initialTime]);
+
+  // eventが渡された場合の編集モード
+  useEffect(() => {
+    if (event) {
+      const startDate = new Date(event.startTime);
+      const endDate = new Date(event.endTime);
+      setFormData({
+        title: event.title,
+        description: event.description || '',
+        startDate: startDate.toISOString().split('T')[0],
+        startTime: startDate.toTimeString().slice(0, 5),
+        endDate: endDate.toISOString().split('T')[0],
+        endTime: endDate.toTimeString().slice(0, 5),
+        timezone: event.timezone,
+        allDay: event.allDay || false,
+      });
+    }
+  }, [event]);
 
   const handleInputChange = (field: keyof EventFormData, value: string | boolean) => {
     setFormData(prev => ({
@@ -136,22 +181,26 @@ export default function EventForm({
     }
 
     try {
-      const event = createEventFromForm(formData, userColor);
-      saveEvent(event);
+      if (event) {
+        // 編集モード
+        const updatedEvent: Event = {
+          ...event,
+          title: formData.title,
+          description: formData.description,
+          startTime: `${formData.startDate}T${formData.startTime}:00`,
+          endTime: `${formData.endDate}T${formData.endTime}:00`,
+          timezone: formData.timezone,
+          allDay: formData.allDay,
+          updatedAt: new Date().toISOString(),
+        };
+        saveEvent(updatedEvent);
+      } else {
+        // 新規作成モード
+        const newEvent = createEventFromForm(formData, userColor);
+        saveEvent(newEvent);
+      }
       onSave();
       onClose();
-      
-      // フォームをリセット
-      setFormData({
-        title: '',
-        description: '',
-        startDate: new Date().toISOString().split('T')[0],
-        startTime: '09:00',
-        endDate: new Date().toISOString().split('T')[0],
-        endTime: '10:00',
-        timezone: userTimezone,
-        allDay: false,
-      });
     } catch (error) {
       console.error('Error saving event:', error);
       alert('予定の保存に失敗しました。');
@@ -167,7 +216,7 @@ export default function EventForm({
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            予定を追加
+            {event ? '予定を編集' : '予定を追加'}
           </h3>
           <button
             onClick={onClose}

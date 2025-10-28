@@ -3,7 +3,7 @@
 import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dayjs from '@/utils/time';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft, Calendar } from 'lucide-react';
 import { getUserSession } from '@/utils/session';
 import { TIMEZONE_OPTIONS } from '@/utils/timezones';
 import TimezoneSelectorModal from './TimezoneSelectorModal';
@@ -24,6 +24,7 @@ export default function MultiZoneDayView({
   const [zones, setZones] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState<{ date: string; time: string; timezone: string } | null>(null);
   const globalHeaderRef = useRef<HTMLDivElement>(null);
   const zoneHeaderRowRef = useRef<HTMLDivElement>(null);
   
@@ -85,6 +86,17 @@ export default function MultiZoneDayView({
   const handleAddZone = () => {
     setIsModalOpen(true);
   };
+
+  const handleAddEvent = () => {
+    // 現在の日付とデフォルトのタイムゾーンで予定を追加
+    const defaultTz = zones[0] || baselineTz;
+    setSelectedDateTime({ 
+      date: dateISO, 
+      time: '09:00', 
+      timezone: defaultTz 
+    });
+    setIsEventFormOpen(true);
+  };
   
   const handleEventFormClose = () => {
     setIsEventFormOpen(false);
@@ -141,14 +153,24 @@ export default function MultiZoneDayView({
             月カレンダー
           </button>
         </div>
-        <button
-          onClick={handleAddZone}
-          className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-full hover:bg-green-600 transition"
-          title="国を追加"
-        >
-          <Plus size={18} />
-          国を追加
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAddEvent}
+            className="flex items-center gap-1 bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition"
+            title="予定を追加"
+          >
+            <Calendar size={18} />
+            予定を追加
+          </button>
+          <button
+            onClick={handleAddZone}
+            className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600"
+            title="国を追加"
+          >
+            <Plus size={18} />
+            国を追加
+          </button>
+        </div>
       </div>
 
       {/* ===== タイムゾーンヘッダー ===== */}
@@ -194,37 +216,14 @@ export default function MultiZoneDayView({
       {/* ===== タイムライン本体（スクロール可能） ===== */}
       <div className="flex-1 overflow-y-auto border-t border-gray-200 pt-[20px]">
         <div className="grid" style={{ gridTemplateColumns: `80px ${zones.map(() => '80px 1fr').join(' ')}` }}>
-        {/* 各行: 各タイムゾーンの0-24時を含む範囲を表示 */}
+        {/* 各行: baselineの時刻を中心に、無限にスクロール可能 */}
         {(() => {
-          // 各タイムゾーンの0-24時をbaselineに変換して、最小・最大時刻を求める
-          let minHour = Infinity;
-          let maxHour = -Infinity;
-          
-          zones.forEach((tz) => {
-            const tzDayStart = dayjs(dateISO).tz(tz).startOf('day');
-            hours.forEach(tzHour => {
-              const tzTime = tzHour === 24 ? tzDayStart.add(24, 'hour') : tzDayStart.add(tzHour, 'hour');
-              const baselineTime = tzTime.tz(baselineTz);
-              const baselineDay = baselineTime.format('YYYY-MM-DD');
-              const baselineHour = baselineTime.hour();
-              
-              let normalizedHour;
-              if (baselineDay < dateISO) {
-                normalizedHour = baselineHour; // 前日
-              } else if (baselineDay > dateISO) {
-                normalizedHour = baselineHour + 24; // 翌日
-              } else {
-                normalizedHour = baselineHour; // 当日
-              }
-              
-              minHour = Math.min(minHour, normalizedHour);
-              maxHour = Math.max(maxHour, normalizedHour);
-            });
-          });
-          
-          // 表示すべき行のリストを生成
+          // 表示範囲を広げる（前後48時間分）
           const displayHours: number[] = [];
-          for (let h = minHour; h <= maxHour; h++) {
+          const startHour = -24; // 前日24時間分
+          const endHour = 48; // 翌日48時間分
+          
+          for (let h = startHour; h <= endHour; h++) {
             displayHours.push(h);
           }
           
@@ -232,17 +231,24 @@ export default function MultiZoneDayView({
             const baselineDayStart = dayjs(dateISO).tz(baselineTz).startOf('day');
             let baselineTimeAtRow;
             
-            if (baselineRowHour >= 25) {
+            if (baselineRowHour < 0) {
+              // 前日
+              baselineTimeAtRow = baselineDayStart.add(baselineRowHour, 'hour');
+            } else if (baselineRowHour >= 25) {
+              // 翌日の25時以降
               baselineTimeAtRow = baselineDayStart.add(baselineRowHour - 24, 'hour').add(1, 'day');
             } else if (baselineRowHour === 24) {
               baselineTimeAtRow = baselineDayStart.add(24, 'hour');
+            } else if (baselineRowHour > 24) {
+              // 翌日の25時未満
+              baselineTimeAtRow = baselineDayStart.add(baselineRowHour, 'hour');
             } else {
               baselineTimeAtRow = baselineDayStart.add(baselineRowHour, 'hour');
             }
             
             const baselineRowDate = baselineTimeAtRow.format('YYYY-MM-DD');
-            const isPreviousDay = baselineRowDate < dateISO;
-            const isNextDay = baselineRowDate > dateISO;
+            const isPreviousDay = baselineRowDate < dateISO || baselineRowHour < 0;
+            const isNextDay = baselineRowDate > dateISO || baselineRowHour >= 25;
             const isOutOfRange = isPreviousDay || isNextDay;
             
             return (
@@ -254,7 +260,14 @@ export default function MultiZoneDayView({
                   <span className={`absolute top-0 -translate-y-1/2 ${
                     isOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-700'
                   }`}>
-                    {baselineRowHour >= 25 ? `${baselineRowHour}:00` : baselineRowHour === 24 ? '24:00' : `${baselineRowHour}:00`}
+                    {baselineRowHour < 0 
+                      ? `${baselineRowHour + 24}:00` // 前日: -23 → 1:00, -22 → 2:00, ..., -1 → 23:00
+                      : baselineRowHour >= 25 
+                      ? `${baselineRowHour}:00` 
+                      : baselineRowHour === 24 
+                      ? '24:00' 
+                      : `${baselineRowHour}:00`
+                    }
                   </span>
                 </div>
                 
@@ -291,11 +304,13 @@ export default function MultiZoneDayView({
                       <div className={`border-b border-r border-gray-200 h-16 flex items-start justify-end pr-2 text-sm font-medium relative ${
                         tzIsOutOfRange ? 'bg-gray-50' : 'bg-white'
                       }`}>
-                        {/* 日付が変わった場合は日付を表示 */}
+                        {/* 日付が変わった場合は日付を表示（行の上の境界線に） */}
                         {isDateChanged && (
-                          <span className="absolute left-1 top-0 text-xs font-bold text-blue-600">
-                            {dayjs(tzDayAtRow).format('M/D')}
-                          </span>
+                          <div className="absolute top-0 left-0 -translate-y-full w-full h-6 bg-blue-50 border-b border-gray-300 flex items-center px-1">
+                            <span className="text-xs font-bold text-blue-600">
+                              {dayjs(tzDayAtRow).format('M/D (ddd)')}
+                            </span>
+                          </div>
                         )}
                         <span className={`absolute top-0 -translate-y-1/2 ${tzIsOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-700'}`}>
                           {tzHour}:00
@@ -340,27 +355,30 @@ export default function MultiZoneDayView({
       />
       
       {/* 予定入力フォーム */}
-      <EventForm
-        isOpen={isEventFormOpen}
-        onClose={handleEventFormClose}
-        onSave={handleEventSave}
-        initialDate={dateISO}
-        initialTimezone={baselineTz}
-      />
+      {selectedDateTime && (
+        <EventForm
+          isOpen={isEventFormOpen}
+          onClose={() => {
+            setIsEventFormOpen(false);
+            setSelectedDateTime(null);
+          }}
+          onSave={handleEventSave}
+          initialDate={selectedDateTime.date}
+          initialTime={selectedDateTime.time}
+          initialTimezone={selectedDateTime.timezone}
+        />
+      )}
       
       {/* フローティングアクションボタン - 予定追加 */}
       <button
-        onClick={() => {
-          console.log('予定追加ボタンがクリックされました');
-          setIsEventFormOpen(true);
-        }}
-        className="fixed bottom-6 right-6 w-16 h-16 bg-blue-500 text-white rounded-full shadow-2xl hover:bg-blue-600 hover:shadow-blue-500/50 transition-all hover:scale-110 flex items-center justify-center z-50"
+        onClick={handleAddEvent}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-green-500 text-white rounded-full shadow-2xl hover:bg-green-600 hover:shadow-green-500/50 transition-all hover:scale-110 flex items-center justify-center z-50"
         title="予定を追加"
         style={{
-          boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(59, 130, 246, 0.2)'
+          boxShadow: '0 10px 25px -5px rgba(34, 197, 94, 0.5), 0 10px 10px -5px rgba(34, 197, 94, 0.2)'
         }}
       >
-        <Plus size={28} strokeWidth={3} />
+        <Calendar size={28} strokeWidth={3} />
       </button>
     </main>
   );
