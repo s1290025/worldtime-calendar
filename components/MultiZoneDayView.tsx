@@ -80,7 +80,7 @@ export default function MultiZoneDayView({
     };
   }, []);
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const hours = Array.from({ length: 25 }, (_, i) => i); // 0-24時を表示
 
   const handleAddZone = () => {
     setIsModalOpen(true);
@@ -183,64 +183,74 @@ export default function MultiZoneDayView({
       </div>
 
       {/* ===== タイムライン本体 ===== */}
-      <div
-        className="grid border-t border-gray-200 pt-[20px]" // ← 上の隙間を確保して見切れ防止
-        style={{
-          gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
-        }}
-      >
-        {hours.map((h) => (
-          <React.Fragment key={h}>
+      <div className="border-t border-gray-200 pt-[20px]">
+        {hours.map((rowHour) => (
+          <div key={rowHour} className="flex">
+            {/* 時間列 */}
+            <div className="w-20 border-b border-gray-200 flex items-start justify-end pr-2 text-sm font-medium relative h-16">
+              <span className="absolute top-0 -translate-y-1/2">
+                {rowHour === 24 ? '24:00' : `${rowHour}:00`}
+              </span>
+            </div>
+            
+            {/* 各タイムゾーンの列 */}
             {zones.map((tz) => {
-              const base = dayjs(dateISO)
-                .tz(baselineTz)
-                .hour(h)
-                .minute(0)
-                .second(0);
-              const local = base.tz(tz);
-
-              // この時間帯の予定を取得
+              // baselineのrowHour時をこのタイムゾーンに変換
+              const baselineDayStart = dayjs(dateISO).tz(baselineTz).startOf('day');
+              const baselineTimeAtRow = rowHour === 24 ? baselineDayStart.add(24, 'hour') : baselineDayStart.add(rowHour, 'hour');
+              const tzTimeAtRow = baselineTimeAtRow.tz(tz);
+              
+              const tzDayAtRow = tzTimeAtRow.format('YYYY-MM-DD');
+              const tzHourAtRow = tzTimeAtRow.hour();
+              
+              // 基準日をはみ出しているかチェック
+              const isPreviousDay = tzDayAtRow < dateISO;
+              const isNextDay = tzDayAtRow > dateISO;
+              const isOutOfRange = isPreviousDay || isNextDay;
+              
+              // 予定を取得
               const userSession = getUserSession();
-              const timezone = userSession?.timezone || 'Asia/Tokyo';
+              const timezone = userSession?.timezone || baselineTz;
               const eventsInThisHour = getEventsForDate(dateISO, timezone).filter(event => {
                 const eventStart = dayjs(event.startTime);
                 const eventEnd = dayjs(event.endTime);
-                const hourStart = local.startOf('hour');
-                const hourEnd = local.endOf('hour');
+                const hourStart = baselineTimeAtRow.startOf('hour');
+                const hourEnd = baselineTimeAtRow.endOf('hour');
                 
                 return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
               });
-
+              
               return (
-                <React.Fragment key={`${tz}-${h}`}>
-                  {/* 時間セル（線の高さに合わせる） */}
-                  <div className="h-16 border-b border-gray-200 flex items-start justify-end pr-2 text-gray-700 text-sm font-medium relative">
-                    <span className="absolute top-0 -translate-y-1/2">
-                      {local.format('HH:mm')}
-                    </span>
-                  </div>
-
-                  {/* 予定欄セル */}
-                  <div className="h-16 border-b border-r border-gray-200 bg-white relative">
-                    {eventsInThisHour.map(event => (
-                      <div
-                        key={event.id}
-                        className="absolute inset-x-0 top-0 h-full text-xs p-1 rounded font-semibold shadow-sm overflow-hidden"
-                        style={{ 
-                          backgroundColor: event.color,
-                          color: getContrastColor(event.color),
-                          height: '100%'
-                        }}
-                        title={event.title}
-                      >
-                        {event.title}
-                      </div>
-                    ))}
-                  </div>
-                </React.Fragment>
+                <div
+                  key={`${tz}-${rowHour}`}
+                  className={`flex-1 border-b border-r border-gray-200 relative h-16 ${
+                    isOutOfRange ? 'bg-gray-50' : 'bg-white'
+                  }`}
+                >
+                  {/* 時刻表示 */}
+                  <span className={`text-xs ml-1 ${isOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-900'}`}>
+                    {tzHourAtRow}:00
+                  </span>
+                  
+                  {/* 予定表示 */}
+                  {eventsInThisHour.map(event => (
+                    <div
+                      key={event.id}
+                      className="absolute inset-x-0 top-0 h-full text-xs p-1 rounded font-semibold shadow-sm overflow-hidden"
+                      style={{
+                        backgroundColor: event.color,
+                        color: getContrastColor(event.color),
+                        height: '100%'
+                      }}
+                      title={event.title}
+                    >
+                      {event.title}
+                    </div>
+                  ))}
+                </div>
               );
             })}
-          </React.Fragment>
+          </div>
         ))}
       </div>
 
