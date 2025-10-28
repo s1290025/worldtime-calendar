@@ -1,5 +1,7 @@
 // 予定管理ユーティリティ
 
+import dayjs from '@/utils/time';
+
 export interface Event {
   id: string;
   title: string;
@@ -39,6 +41,11 @@ export function saveEvent(event: Event): void {
     }
     
     sessionStorage.setItem(EVENTS_KEY, JSON.stringify(events));
+    
+    // カスタムイベントを発火して、月カレンダーなどに変更を通知
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('eventsUpdated'));
+    }
   } catch (error) {
     console.error('Error saving event:', error);
   }
@@ -50,6 +57,11 @@ export function deleteEvent(eventId: string): void {
     const events = getEvents();
     const filteredEvents = events.filter(e => e.id !== eventId);
     sessionStorage.setItem(EVENTS_KEY, JSON.stringify(filteredEvents));
+    
+    // カスタムイベントを発火して、月カレンダーなどに変更を通知
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('eventsUpdated'));
+    }
   } catch (error) {
     console.error('Error deleting event:', error);
   }
@@ -69,28 +81,52 @@ export function getEvents(): Event[] {
 // 特定の日付の予定を取得
 export function getEventsForDate(dateISO: string, timezone: string): Event[] {
   const events = getEvents();
-  const targetDate = new Date(dateISO);
   
   return events.filter(event => {
-    const eventStart = new Date(event.startTime);
-    const eventEnd = new Date(event.endTime);
-    
-    // 日付が予定の開始日と終了日の間に含まれるかチェック
-    return eventStart <= targetDate && eventEnd >= targetDate;
+    try {
+      // 予定のタイムゾーンを取得
+      const eventTimezone = event.timezone || 'Asia/Tokyo';
+      
+      // 予定のstartTime/endTimeを予定のタイムゾーンで解釈
+      const eventStartLocal = dayjs.tz(event.startTime, eventTimezone);
+      const eventEndLocal = dayjs.tz(event.endTime, eventTimezone);
+      
+      // ユーザーのタイムゾーンに変換
+      const eventStart = eventStartLocal.tz(timezone);
+      const eventEnd = eventEndLocal.tz(timezone);
+      
+      // 予定の開始日の日付部分を取得 (YYYY-MM-DD)
+      const eventStartDate = eventStart.format('YYYY-MM-DD');
+      const eventEndDate = eventEnd.format('YYYY-MM-DD');
+      
+      // dateISOが予定の範囲内にあるかチェック
+      const matches = eventStartDate <= dateISO && dateISO <= eventEndDate;
+      
+      return matches;
+    } catch (error) {
+      // エラーが発生した場合は予定を除外
+      console.error('Error filtering event:', error);
+      return false;
+    }
   });
 }
 
 // 予定フォームデータからEventオブジェクトを作成
 export function createEventFromForm(formData: EventFormData, userColor: string): Event {
+  // タイムゾーンを考慮してUTC時刻に変換
   const startDateTime = `${formData.startDate}T${formData.startTime}:00`;
   const endDateTime = `${formData.endDate}T${formData.endTime}:00`;
+  
+  // 指定されたタイムゾーンで解釈して、UTC時刻を取得
+  const startTimeUTC = dayjs.tz(startDateTime, formData.timezone).utc().toISOString();
+  const endTimeUTC = dayjs.tz(endDateTime, formData.timezone).utc().toISOString();
   
   return {
     id: generateEventId(),
     title: formData.title,
     description: formData.description,
-    startTime: startDateTime,
-    endTime: endDateTime,
+    startTime: startTimeUTC,
+    endTime: endTimeUTC,
     timezone: formData.timezone,
     color: userColor,
     allDay: formData.allDay,
@@ -117,6 +153,11 @@ export function updateEvent(eventId: string, updates: Partial<Event>): void {
         updatedAt: new Date().toISOString(),
       };
       sessionStorage.setItem(EVENTS_KEY, JSON.stringify(events));
+      
+      // カスタムイベントを発火して、月カレンダーなどに変更を通知
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('eventsUpdated'));
+      }
     }
   } catch (error) {
     console.error('Error updating event:', error);

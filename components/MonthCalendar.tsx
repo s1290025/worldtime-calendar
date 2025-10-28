@@ -41,6 +41,24 @@ export default function MonthCalendar() {
     return () => window.removeEventListener('resize', updateHeight);
   }, []);
 
+  // sessionStorageの変更を監視して予定を更新
+  useEffect(() => {
+    const handleStorageChange = () => {
+      // sessionStorageが変更されたら、強制的に再レンダリングをトリガー
+      setCurrentMonth((prev) => prev);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // カスタムイベントもリッスン（同一タブ内での変更用）
+    window.addEventListener('eventsUpdated', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('eventsUpdated', handleStorageChange);
+    };
+  }, []);
+
   const startOfMonth = currentMonth.startOf('month');
   const endOfMonth = currentMonth.endOf('month');
   const startOfCalendar = startOfMonth.startOf('week');
@@ -78,8 +96,8 @@ export default function MonthCalendar() {
 
   // ヘッダー＋曜日部分を引いた残りを週ごとに均等配分
   const headerHeight = 120; // px（タイトル＋曜日）
-  const availableHeight = Math.max(windowHeight - headerHeight - 40, 300); // 最低300px確保
-  const cellHeight = availableHeight / weekCount;
+  const availableHeight = Math.max(windowHeight - headerHeight - 40, 500); // 最低500px確保
+  const cellHeight = Math.max(availableHeight / weekCount, 100); // セルあたり最低100px
 
   return (
     <div className="flex justify-center items-start bg-gray-50 h-screen">
@@ -158,6 +176,11 @@ export default function MonthCalendar() {
             const userSession = getUserSession();
             const timezone = userSession?.timezone || 'Asia/Tokyo';
             const events = getEventsForDate(dateStr, timezone);
+            
+            // デバッグログ
+            if (events.length > 0) {
+              console.log(`📋 ${dateStr}: Found ${events.length} events`);
+            }
 
             return (
               <div
@@ -172,17 +195,32 @@ export default function MonthCalendar() {
                   height: `${cellHeight}px`,
                 }}
               >
-                <div className="text-right text-sm mb-1">{d.date()}</div>
+                <div 
+                  className="text-right text-sm mb-1 relative z-20 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/day/${dateStr}`);
+                  }}
+                >
+                  {d.date()}
+                </div>
                 
                 {/* 予定表示 */}
-                <div className="space-y-1">
-                  {events.slice(0, 3).map((event) => (
+                <div className="space-y-1 relative z-20">
+                  {events.length > 0 && (
+                    <div className="text-[8px] text-red-600 font-bold mb-1">
+                      {events.length}件
+                    </div>
+                  )}
+                  {events.slice(0, 5).map((event, idx) => (
                     <div
                       key={event.id}
-                      className="text-xs p-1 rounded truncate font-semibold shadow-sm cursor-pointer hover:opacity-80 transition-opacity relative z-10"
+                      className="text-xs px-1.5 py-1 rounded truncate font-semibold cursor-pointer hover:opacity-80 transition-opacity shadow"
                       style={{ 
-                        backgroundColor: event.color,
-                        color: getContrastColor(event.color)
+                        backgroundColor: event.color || '#3b82f6',
+                        color: getContrastColor(event.color || '#3b82f6'),
+                        lineHeight: '1.4',
+                        minHeight: '18px'
                       }}
                       title={event.title}
                       onClick={(e) => {
@@ -193,20 +231,12 @@ export default function MonthCalendar() {
                       {event.title}
                     </div>
                   ))}
-                  {events.length > 3 && (
-                    <div className="text-xs text-gray-600 font-medium">
-                      +{events.length - 3} 件
+                  {events.length > 5 && (
+                    <div className="text-xs text-gray-600 font-medium px-1.5">
+                      +{events.length - 5} 件
                     </div>
                   )}
                 </div>
-
-                {/* クリックイベント - 日タイムライン表示 */}
-                <div
-                  className="absolute inset-0"
-                  onClick={(e) => {
-                    router.push(`/day/${dateStr}`);
-                  }}
-                />
               </div>
             );
           })}

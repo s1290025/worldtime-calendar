@@ -316,6 +316,53 @@ export default function SharedDayView() {
         <div className="grid" style={{ gridTemplateColumns: zones.map(() => '80px 1fr').join(' ') }}>
         {/* 前後1日分（-24から48まで、72時間分）を表示 */}
         {(() => {
+          // 各タイムゾーンで全体のイベントをレイアウト
+          const eventLayouts: Record<string, any[]> = {};
+          
+          zones.forEach((tz) => {
+            const tzEventLayout: any[] = [];
+            const tzEvents = events.map(event => ({
+              ...event,
+              startTime: dayjs(event.startTime).tz(tz).toISOString(),
+              endTime: dayjs(event.endTime).tz(tz).toISOString(),
+            }));
+
+            // 時間順でソート
+            const sorted = [...tzEvents].sort(
+              (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            );
+
+            type LEvent = any & { col: number; cols: number };
+            const placed: LEvent[] = [];
+            const active: LEvent[] = [];
+
+            const isOverlap = (a: any, b: any) =>
+              !(new Date(a.endTime) <= new Date(b.startTime) || new Date(b.endTime) <= new Date(a.startTime));
+
+            for (const ev of sorted) {
+              // 終了したものをactiveから外す
+              for (let i = active.length - 1; i >= 0; i--) {
+                if (new Date(active[i].endTime) <= new Date(ev.startTime)) active.splice(i, 1);
+              }
+              
+              // 使える列を探す
+              const usedCols = new Set(active.map(e => e.col));
+              let col = 0;
+              while (usedCols.has(col)) col++;
+
+              const lev: LEvent = { ...ev, col, cols: 1 };
+              active.push(lev);
+              placed.push(lev);
+
+              // 同一クラスタに属するイベントの最大列数を更新
+              const cluster = placed.filter(e => isOverlap(e, ev));
+              const maxCols = Math.max(...cluster.map(e => e.col)) + 1;
+              cluster.forEach(e => (e.cols = Math.max(e.cols, maxCols)));
+            }
+            
+            eventLayouts[tz] = placed;
+          });
+
           const displayHours = [];
           for (let h = -24; h <= 48; h++) {
             displayHours.push(h);
@@ -354,12 +401,13 @@ export default function SharedDayView() {
               const prevTzDay = prevTzTime.format('YYYY-MM-DD');
               const isDateChanged = tzDayAtRow !== prevTzDay;
               
-              // この時間帯に該当する予定を取得
+              // この時間帯に該当する予定を取得（レイアウト済み）
               const hourStart = tzTimeAtRow.startOf('hour');
               const hourEnd = tzTimeAtRow.endOf('hour');
-              const hourEvents = events.filter(event => {
-                const eventStart = dayjs(event.startTime);
-                const eventEnd = dayjs(event.endTime);
+              const tzLayout = eventLayouts[tz] || [];
+              const hourEvents = tzLayout.filter(event => {
+                const eventStart = dayjs(event.startTime).tz(tz);
+                const eventEnd = dayjs(event.endTime).tz(tz);
                 return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
               });
               
@@ -387,33 +435,43 @@ export default function SharedDayView() {
                 // イベント列
                 <div 
                   key={`event-${tz}-${rowHour}`} 
-                  className={`border-b border-r border-gray-200 h-16 relative cursor-pointer hover:bg-gray-100 ${
+                  className={`border-b border-r border-gray-200 h-16 cursor-pointer hover:bg-gray-100 relative overflow-hidden ${
                     isOutOfRange ? 'bg-gray-50' : 'bg-white'
                   }`}
                   onClick={() => {
-                    if (!isOutOfRange) {
+                    if (!isOutOfRange && hourEvents.length === 0) {
                       const tzDateStr = tzTimeAtRow.format('YYYY-MM-DD');
                       handleCellClick(tzDateStr, tzHour, tz);
                     }
                   }}
                 >
-                  {hourEvents.map((event, idx) => (
-                    <div
-                      key={event.id}
-                      className="px-2 py-1 rounded text-xs font-medium truncate cursor-pointer hover:opacity-70"
-                      style={{
-                        backgroundColor: event.color + '20',
-                        color: event.color,
-                        borderLeft: `3px solid ${event.color}`,
-                        marginTop: `${idx * 20}px`,
-                        height: '60px',
-                      }}
-                      title={event.title}
-                      onClick={(e) => handleEventClick(event, e)}
-                    >
-                      {event.title}
-                    </div>
-                  ))}
+                  {hourEvents.map((event, idx) => {
+                    const widthPct = 100 / (event.cols || 1);
+                    const leftPct = (event.col || 0) * widthPct;
+                    
+                    return (
+                      <div
+                        key={event.id}
+                        className="px-2 py-1 rounded text-xs font-medium truncate cursor-pointer hover:opacity-70 absolute z-10"
+                        style={{
+                          backgroundColor: event.color + '20',
+                          color: event.color,
+                          borderLeft: `3px solid ${event.color}`,
+                          left: `${leftPct}%`,
+                          width: `${widthPct}%`,
+                          top: `${idx * 16}px`,
+                          height: '60px',
+                        }}
+                        title={event.title}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEventClick(event, e);
+                        }}
+                      >
+                        {event.title}
+                      </div>
+                    );
+                  })}
                 </div>,
               ];
             });
