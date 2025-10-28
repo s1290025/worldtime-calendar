@@ -125,8 +125,8 @@ export default function MultiZoneDayView({
 
 
   return (
-    <main className="min-h-screen bg-white">
-      {/* ===== 日付ヘッダー ===== */}
+    <main className="h-screen flex flex-col bg-white">
+      {/* ===== ヘッダー ===== */}
       <div
         ref={globalHeaderRef}
         className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex justify-between items-center"
@@ -140,9 +140,6 @@ export default function MultiZoneDayView({
             <ArrowLeft size={16} />
             月カレンダー
           </button>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {dayjs(dateISO).format('YYYY年MM月DD日（ddd）')}
-          </h2>
         </div>
         <button
           onClick={handleAddZone}
@@ -165,93 +162,173 @@ export default function MultiZoneDayView({
         <div
           className="grid"
           style={{
-            gridTemplateColumns: zones.map(() => '80px 1fr').join(' '),
+            gridTemplateColumns: `80px ${zones.map(() => '80px 1fr').join(' ')}`,
           }}
         >
-          {zones.map((tz) => (
-            <React.Fragment key={tz}>
-              {/* ← 時間列ヘッダー（空） */}
-              <div className="h-[64px] border-r bg-white" />
+          {/* 左端の時刻列ヘッダー（空） */}
+          <div className="h-[64px] border-r bg-white" />
+          
+          {/* 各タイムゾーンのヘッダー */}
+          {zones.map((tz) => {
+            const tzDayStart = dayjs(dateISO).tz(tz).startOf('day');
+            const tzDate = dayjs(tzDayStart).format('MM/DD(ddd)');
+            
+            return (
+              <React.Fragment key={tz}>
+                {/* 時刻列ヘッダー: 日付と都市名 */}
+                <div className="h-[64px] border-r bg-white flex items-center justify-center font-bold text-gray-800">
+                  <div className="text-center">
+                    <div>{tzDate}</div>
+                    <div className="text-sm font-normal">{getCityName(tz)}</div>
+                  </div>
+                </div>
 
-              {/* ← 都市名（国名）ヘッダー */}
-              <div className="h-[64px] border-r bg-white flex items-center justify-center font-bold text-gray-800">
-                {getCityName(tz)}
-              </div>
-            </React.Fragment>
-          ))}
+                {/* イベント列ヘッダー（空） */}
+                <div className="h-[64px] border-r bg-white" />
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
-      {/* ===== タイムライン本体 ===== */}
-      <div className="border-t border-gray-200 pt-[20px]">
-        {hours.map((rowHour) => (
-          <div key={rowHour} className="flex">
-            {/* 時間列 */}
-            <div className="w-20 border-b border-gray-200 flex items-start justify-end pr-2 text-sm font-medium relative h-16">
-              <span className="absolute top-0 -translate-y-1/2">
-                {rowHour === 24 ? '24:00' : `${rowHour}:00`}
-              </span>
-            </div>
+      {/* ===== タイムライン本体（スクロール可能） ===== */}
+      <div className="flex-1 overflow-y-auto border-t border-gray-200 pt-[20px]">
+        <div className="grid" style={{ gridTemplateColumns: `80px ${zones.map(() => '80px 1fr').join(' ')}` }}>
+        {/* 各行: 各タイムゾーンの0-24時を含む範囲を表示 */}
+        {(() => {
+          // 各タイムゾーンの0-24時をbaselineに変換して、最小・最大時刻を求める
+          let minHour = Infinity;
+          let maxHour = -Infinity;
+          
+          zones.forEach((tz) => {
+            const tzDayStart = dayjs(dateISO).tz(tz).startOf('day');
+            hours.forEach(tzHour => {
+              const tzTime = tzHour === 24 ? tzDayStart.add(24, 'hour') : tzDayStart.add(tzHour, 'hour');
+              const baselineTime = tzTime.tz(baselineTz);
+              const baselineDay = baselineTime.format('YYYY-MM-DD');
+              const baselineHour = baselineTime.hour();
+              
+              let normalizedHour;
+              if (baselineDay < dateISO) {
+                normalizedHour = baselineHour; // 前日
+              } else if (baselineDay > dateISO) {
+                normalizedHour = baselineHour + 24; // 翌日
+              } else {
+                normalizedHour = baselineHour; // 当日
+              }
+              
+              minHour = Math.min(minHour, normalizedHour);
+              maxHour = Math.max(maxHour, normalizedHour);
+            });
+          });
+          
+          // 表示すべき行のリストを生成
+          const displayHours: number[] = [];
+          for (let h = minHour; h <= maxHour; h++) {
+            displayHours.push(h);
+          }
+          
+          return displayHours.map((baselineRowHour) => {
+            const baselineDayStart = dayjs(dateISO).tz(baselineTz).startOf('day');
+            let baselineTimeAtRow;
             
-            {/* 各タイムゾーンの列 */}
-            {zones.map((tz) => {
-              // baselineのrowHour時をこのタイムゾーンに変換
-              const baselineDayStart = dayjs(dateISO).tz(baselineTz).startOf('day');
-              const baselineTimeAtRow = rowHour === 24 ? baselineDayStart.add(24, 'hour') : baselineDayStart.add(rowHour, 'hour');
-              const tzTimeAtRow = baselineTimeAtRow.tz(tz);
-              
-              const tzDayAtRow = tzTimeAtRow.format('YYYY-MM-DD');
-              const tzHourAtRow = tzTimeAtRow.hour();
-              
-              // 基準日をはみ出しているかチェック
-              const isPreviousDay = tzDayAtRow < dateISO;
-              const isNextDay = tzDayAtRow > dateISO;
-              const isOutOfRange = isPreviousDay || isNextDay;
-              
-              // 予定を取得
-              const userSession = getUserSession();
-              const timezone = userSession?.timezone || baselineTz;
-              const eventsInThisHour = getEventsForDate(dateISO, timezone).filter(event => {
-                const eventStart = dayjs(event.startTime);
-                const eventEnd = dayjs(event.endTime);
-                const hourStart = baselineTimeAtRow.startOf('hour');
-                const hourEnd = baselineTimeAtRow.endOf('hour');
-                
-                return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
-              });
-              
-              return (
-                <div
-                  key={`${tz}-${rowHour}`}
-                  className={`flex-1 border-b border-r border-gray-200 relative h-16 ${
-                    isOutOfRange ? 'bg-gray-50' : 'bg-white'
-                  }`}
-                >
-                  {/* 時刻表示 */}
-                  <span className={`text-xs ml-1 ${isOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-900'}`}>
-                    {tzHourAtRow}:00
+            if (baselineRowHour >= 25) {
+              baselineTimeAtRow = baselineDayStart.add(baselineRowHour - 24, 'hour').add(1, 'day');
+            } else if (baselineRowHour === 24) {
+              baselineTimeAtRow = baselineDayStart.add(24, 'hour');
+            } else {
+              baselineTimeAtRow = baselineDayStart.add(baselineRowHour, 'hour');
+            }
+            
+            const baselineRowDate = baselineTimeAtRow.format('YYYY-MM-DD');
+            const isPreviousDay = baselineRowDate < dateISO;
+            const isNextDay = baselineRowDate > dateISO;
+            const isOutOfRange = isPreviousDay || isNextDay;
+            
+            return (
+              <React.Fragment key={baselineRowHour}>
+                {/* 左端のbaseline時刻列 */}
+                <div className={`border-b border-gray-200 h-16 flex items-start justify-end pr-2 text-sm font-medium relative ${
+                  isOutOfRange ? 'bg-gray-50' : 'bg-white'
+                }`}>
+                  <span className={`absolute top-0 -translate-y-1/2 ${
+                    isOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-700'
+                  }`}>
+                    {baselineRowHour >= 25 ? `${baselineRowHour}:00` : baselineRowHour === 24 ? '24:00' : `${baselineRowHour}:00`}
                   </span>
-                  
-                  {/* 予定表示 */}
-                  {eventsInThisHour.map(event => (
-                    <div
-                      key={event.id}
-                      className="absolute inset-x-0 top-0 h-full text-xs p-1 rounded font-semibold shadow-sm overflow-hidden"
-                      style={{
-                        backgroundColor: event.color,
-                        color: getContrastColor(event.color),
-                        height: '100%'
-                      }}
-                      title={event.title}
-                    >
-                      {event.title}
-                    </div>
-                  ))}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+                
+                {/* 各タイムゾーンの時刻列とイベント列 */}
+                {zones.map((tz) => {
+                  const tzTimeAtRow = baselineTimeAtRow.tz(tz);
+                  const tzHour = tzTimeAtRow.hour();
+                  const tzDayAtRow = tzTimeAtRow.format('YYYY-MM-DD');
+                  
+                  const isPreviousDay = tzDayAtRow < dateISO;
+                  const isNextDay = tzDayAtRow > dateISO;
+                  const tzIsOutOfRange = isPreviousDay || isNextDay;
+                  
+                  // 前の時刻を計算（日付が変わったかチェック）
+                  const prevBaselineTime = baselineTimeAtRow.subtract(1, 'hour');
+                  const prevTzTime = prevBaselineTime.tz(tz);
+                  const prevTzDay = prevTzTime.format('YYYY-MM-DD');
+                  const isDateChanged = tzDayAtRow !== prevTzDay;
+                  
+                  const userSession = getUserSession();
+                  const timezone = userSession?.timezone || baselineTz;
+                  const eventsInThisHour = getEventsForDate(dateISO, timezone).filter(event => {
+                    const eventStart = dayjs(event.startTime);
+                    const eventEnd = dayjs(event.endTime);
+                    const hourStart = baselineTimeAtRow.startOf('hour');
+                    const hourEnd = baselineTimeAtRow.endOf('hour');
+                    
+                    return eventStart.isBefore(hourEnd) && eventEnd.isAfter(hourStart);
+                  });
+                  
+                  return (
+                    <React.Fragment key={`${tz}-${baselineRowHour}`}>
+                      {/* 時刻列 */}
+                      <div className={`border-b border-r border-gray-200 h-16 flex items-start justify-end pr-2 text-sm font-medium relative ${
+                        tzIsOutOfRange ? 'bg-gray-50' : 'bg-white'
+                      }`}>
+                        {/* 日付が変わった場合は日付を表示 */}
+                        {isDateChanged && (
+                          <span className="absolute left-1 top-0 text-xs font-bold text-blue-600">
+                            {dayjs(tzDayAtRow).format('M/D')}
+                          </span>
+                        )}
+                        <span className={`absolute top-0 -translate-y-1/2 ${tzIsOutOfRange ? 'text-gray-400 opacity-50' : 'text-gray-700'}`}>
+                          {tzHour}:00
+                        </span>
+                      </div>
+                      
+                      {/* イベント列 */}
+                      <div className={`border-b border-r border-gray-200 h-16 relative ${
+                        tzIsOutOfRange ? 'bg-gray-50' : 'bg-white'
+                      }`}>
+                        {eventsInThisHour.map(event => (
+                          <div
+                            key={event.id}
+                            className="absolute inset-x-0 top-0 h-full text-xs p-1 rounded font-semibold shadow-sm overflow-hidden"
+                            style={{
+                              backgroundColor: event.color,
+                              color: getContrastColor(event.color),
+                              height: '100%'
+                            }}
+                            title={event.title}
+                          >
+                            {event.title}
+                          </div>
+                        ))}
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </React.Fragment>
+            );
+          });
+        })()}
+        </div>
       </div>
 
       {/* タイムゾーン選択モーダル */}
